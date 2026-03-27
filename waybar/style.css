@@ -1,0 +1,127 @@
+/* Catppuccin Mocha - dark minimal */
+* {
+    font-family: "Noto Sans CJK JP", "Font Awesome 6 Free Solid", "Font Awesome 6 Free", monospace;
+    font-size: 13px;
+    min-height: 0;
+    border: none;
+    border-radius: 0;
+}
+
+window#waybar {
+    background-color: #1e1e2e;
+    color: #cdd6f4;
+    border-bottom: 1px solid #313244;
+}
+
+/* ワークスペース */
+#workspaces {
+    margin: 0 8px;
+}
+
+#workspaces button {
+    padding: 0 10px;
+    color: #6c7086;
+    background: transparent;
+    border-bottom: 2px solid transparent;
+}
+
+#workspaces button:hover {
+    background: #313244;
+    color: #cdd6f4;
+}
+
+#workspaces button.focused {
+    color: #89b4fa;
+    border-bottom: 2px solid #89b4fa;
+}
+
+#workspaces button.urgent {
+    color: #f38ba8;
+    border-bottom: 2px solid #f38ba8;
+}
+
+/* 中央のウインドウタイトル */
+#window {
+    color: #a6adc8;
+    font-size: 12px;
+}
+
+/* 右側モジュール共通 */
+#network,
+#backlight,
+#power-profiles-daemon,
+#battery,
+#clock,
+#tray,
+#mode {
+    padding: 0 12px;
+    color: #cdd6f4;
+}
+
+/* 区切り線 */
+#network,
+#backlight,
+#power-profiles-daemon,
+#battery {
+    border-right: 1px solid #313244;
+}
+
+/* ネットワーク */
+#network.disconnected {
+    color: #f38ba8;
+}
+
+/* バッテリー */
+#battery.warning {
+    color: #f9e2af;
+}
+
+/* 電源プロファイル */
+#power-profiles-daemon {
+    color: #94e2d5;
+}
+
+#battery.critical {
+    color: #f38ba8;
+    animation-name: blink;
+    animation-duration: 1s;
+    animation-timing-function: steps(1);
+    animation-iteration-count: infinite;
+}
+
+@keyframes blink {
+    to { color: #1e1e2e; background-color: #f38ba8; }
+}
+
+/* 充電中 */
+#battery.charging,
+#battery.plugged {
+    color: #a6e3a1;
+}
+
+/* 明るさ */
+#backlight {
+    color: #f9e2af;
+}
+
+/* 時計 */
+#clock {
+    color: #89b4fa;
+    font-weight: bold;
+}
+
+/* トレイ */
+#tray {
+    padding: 0 8px;
+}
+
+#tray > .passive {
+    -gtk-icon-effect: dim;
+}
+
+/* モード（resizeなど） */
+#mode {
+    background-color: #313244;
+    color: #f9e2af;
+    padding: 0 12px;
+}

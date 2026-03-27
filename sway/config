@@ -1,0 +1,151 @@
+set $mod Mod4
+set $alt Mod1
+set $term ghostty
+set $menu wofi --show run
+font pango:Noto Sans CJK JP 10
+
+# Displays
+# LG UltraFine 5K2K over HDMI cannot use native 5120x2160 here, so prefer
+# the 21:9 mode instead of 16:9 3840x2160 to avoid aspect-ratio distortion.
+output eDP-1 mode 1920x1080@60.049Hz position 0 0 scale 1
+output HDMI-A-1 mode 3440x1440@49.987Hz position 1920 0 scale 1
+
+### アプリ起動 ###
+bindsym Shift+$mod+m exec mpv "$(wl-paste)"
+
+### ウインドウフォーカス ###
+bindsym $alt+h focus left
+bindsym $alt+j focus down
+bindsym $alt+k focus up
+bindsym $alt+l focus right
+bindsym $alt+z focus prev
+bindsym $alt+c focus next
+
+### ウインドウの移動（位置の入れ替え） ###
+bindsym Shift+$alt+h move left
+bindsym Shift+$alt+j move down
+bindsym Shift+$alt+k move up
+bindsym Shift+$alt+l move right
+
+### ウインドウサイズ均等化 ###
+bindsym Shift+$alt+0 exec swaymsg "resize set width 50 ppt height 50 ppt"
+
+### フロートウインドウ配置 ###
+bindsym Shift+$alt+Up floating enable; resize set 100 ppt 100 ppt; move position 0 0
+bindsym Shift+$alt+Left floating enable; resize set 50 ppt 100 ppt; move position 0 0
+bindsym Shift+$alt+Right floating enable; resize set 50 ppt 100 ppt; move position 50 ppt 0
+
+### ワークスペースの切替 ###
+bindsym $mod+$alt+w workspace prev
+bindsym $mod+$alt+x workspace back_and_forth
+bindsym $mod+$alt+z workspace prev_on_output
+bindsym $mod+$alt+c workspace next_on_output
+bindsym $mod+$alt+1 workspace number 1
+bindsym $mod+$alt+2 workspace number 2
+bindsym $mod+$alt+3 workspace number 3
+
+### モニター間の移動 ###
+bindsym Ctrl+$mod+z move window to output left; focus output left
+bindsym Ctrl+$mod+c move window to output right; focus output right
+bindsym Ctrl+$mod+Left move window to output left; focus output left
+bindsym Ctrl+$mod+Right move window to output right; focus output right
+
+### モニターフォーカス ###
+bindsym Ctrl+$alt+z focus output left
+bindsym Ctrl+$alt+c focus output right
+bindsym Ctrl+$alt+Left focus output left
+bindsym Ctrl+$alt+Right focus output right
+
+### ウインドウを相対的に移動 ###
+bindsym Shift+Ctrl+a move left 20 px
+bindsym Shift+Ctrl+s move down 20 px
+bindsym Shift+Ctrl+w move up 20 px
+bindsym Shift+Ctrl+d move right 20 px
+
+### ウインドウサイズ調整 ###
+# 拡大
+bindsym Shift+$alt+a resize shrink width 20 px
+bindsym Shift+$alt+d resize grow width 20 px
+bindsym Shift+$alt+w resize shrink height 20 px
+bindsym Shift+$alt+s resize grow height 20 px
+
+# 縮小
+bindsym Shift+$mod+a resize grow width 20 px
+bindsym Shift+$mod+d resize shrink width 20 px
+bindsym Shift+$mod+w resize grow height 20 px
+bindsym Shift+$mod+s resize shrink height 20 px
+
+### ウインドウ分割タイプ変更 ###
+bindsym $alt+e layout toggle split
+
+### フロート化 ###
+bindsym $alt+t floating toggle
+
+### フロートへのフォーカス切替 ###
+bindsym $mod+space focus mode_toggle
+bindsym Shift+$mod+space focus floating
+
+### スティッキー（全ワークスペース表示） ###
+bindsym $alt+s sticky toggle
+
+### 最前面表示切替 ###
+bindsym $alt+o floating toggle, sticky toggle
+
+### フルスクリーン表示切替 ###
+bindsym $alt+f fullscreen toggle
+
+### レイアウト切り替え ###
+bindsym Ctrl+$alt+a layout default
+bindsym Ctrl+$alt+d floating enable
+bindsym Ctrl+$alt+s layout toggle split
+
+### 回転やミラーリング（擬似的対応）###
+bindsym $alt+r layout tabbed
+bindsym $alt+y layout stacking
+bindsym $alt+x layout toggle split
+
+### ギャップトグル (Gapsが設定済みの場合のみ有効) ###
+bindsym $alt+a gaps inner current toggle 20; gaps outer current toggle 20
+
+### ピクチャーインピクチャー風 (border toggle) ###
+bindsym $alt+p border toggle
+
+### ターミナルとランチャー ###
+bindsym $mod+Return exec $term
+bindsym $mod+slash exec $menu
+
+### 明るさ調整 ###
+bindsym XF86MonBrightnessUp exec brightnessctl set +5%
+bindsym XF86MonBrightnessDown exec brightnessctl set 5%-
+
+# remap
+input type:keyboard {
+  xkb_layout us
+  xkb_options caps:ctrl_modifier
+}
+
+input type:touchpad {
+  tap enabled
+}
+
+# Scratch Pad
+bindsym $mod+Shift+Delete move scratchpad
+bindsym $mod+Delete scratchpad show
+bindsym $mod+Shift+minus move scratchpad
+bindsym $mod+minus scratchpad show
+
+exec_always --no-startup-id sh -c 'pkill -x waybar; exec waybar -c "$HOME/.config/waybar/config.jsonc" -s "$HOME/.config/waybar/style.css"'
+
+# Keyring for Chrominium
+exec --no-startup-id /usr/bin/gnome-keyring-daemon --start --components=secrets
+
+# Toshy の user service が sway セッション情報を読めるようにする
+exec_always --no-startup-id systemctl --user import-environment XDG_SESSION_TYPE XDG_CURRENT_DESKTOP WAYLAND_DISPLAY SWAYSOCK
+exec_always --no-startup-id dbus-update-activation-environment --systemd XDG_SESSION_TYPE XDG_CURRENT_DESKTOP WAYLAND_DISPLAY SWAYSOCK
+exec_always --no-startup-id systemctl --user restart toshy-wlroots-dbus.service toshy-config.service
+
+# mozc
+exec fcitx5 -d
+
+# IMEのポップアップウィンドウをフローティングにする（必要に応じて）
+for_window [app_id="fcitx"] floating enable, border none
