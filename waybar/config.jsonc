@@ -12,6 +12,7 @@
     "modules-right": [
         "network",
         "backlight",
+        "pulseaudio",
         "power-profiles-daemon",
         "battery",
         "clock",
@@ -42,6 +43,14 @@
         "format": " {percent}%",
         "on-scroll-up": "brightnessctl set +2%",
         "on-scroll-down": "brightnessctl set 2%-"
+    },
+
+    "pulseaudio": {
+        "format": " {volume}%",
+        "format-muted": " mute",
+        "scroll-step": 5,
+        "on-click": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
+        "tooltip-format": "音量: {volume}%"
     },
 
     "power-profiles-daemon": {

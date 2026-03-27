@@ -49,6 +49,7 @@ window#waybar {
 /* 右側モジュール共通 */
 #network,
 #backlight,
+#pulseaudio,
 #power-profiles-daemon,
 #battery,
 #clock,
@@ -61,6 +62,7 @@ window#waybar {
 /* 区切り線 */
 #network,
 #backlight,
+#pulseaudio,
 #power-profiles-daemon,
 #battery {
     border-right: 1px solid #313244;
@@ -102,6 +104,11 @@ window#waybar {
 /* 明るさ */
 #backlight {
     color: #f9e2af;
+}
+
+/* 音量 */
+#pulseaudio {
+    color: #fab387;
 }
 
 /* 時計 */
