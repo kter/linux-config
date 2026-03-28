@@ -270,6 +270,32 @@ brightnessctl get         # 現在の値を確認
 
 ---
 
+## スクリーンショット
+
+`grim` と `slurp` が必要:
+```bash
+sudo dnf install grim slurp
+```
+
+### キーボードショートカット（sway config に設定済み）
+
+| キー | 動作 |
+|------|------|
+| `Print` | 画面全体を `~/Pictures/Screenshots/` に保存 |
+| `Shift+Print` | 範囲選択して `~/Pictures/Screenshots/` に保存 |
+
+ファイル名は `YYYY-MM-DD_HH-MM-SS.png` 形式で保存される。
+
+ノートPCでは `Fn` キーはファームウェア側で処理されることが多く、
+Sway からは `Fn` そのものではなく最終的な keysym が見える。
+そのため、物理キーが `Fn+F11` や `Fn+F12` でも、Sway 上で `Print`
+として届いていればこの設定で動く。
+
+期待どおりに反応しない場合は `wev` を起動して該当キーを押し、
+`Print` 以外の keysym が来ていないか確認する。
+
+---
+
 ## Waybar
 
 ### バーが二重に表示される問題（修正済み）
@@ -401,3 +427,10 @@ sudo dnf install fontawesome-fonts brightnessctl
 |------|------|
 | `XF86MonBrightnessUp` | 明るさ +5% |
 | `XF86MonBrightnessDown` | 明るさ -5% |
+
+### スクリーンショット
+
+| キー | 動作 |
+|------|------|
+| `Print` | 画面全体を保存 |
+| `Shift+Print` | 範囲選択して保存 |
