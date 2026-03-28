@@ -1,6 +1,6 @@
 set $mod Mod4
 set $alt Mod1
-set $term ghostty
+set $term foot
 set $menu wofi --show run
 font pango:Noto Sans CJK JP 10
 
