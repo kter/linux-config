@@ -92,7 +92,7 @@ bindsym $alt+s sticky toggle
 bindsym $alt+o floating toggle, sticky toggle
 
 ### フルスクリーン表示切替 ###
-bindsym $alt+f fullscreen toggle
+bindsym Shift+$alt+f fullscreen toggle
 
 ### レイアウト切り替え ###
 bindsym Ctrl+$alt+a layout default
