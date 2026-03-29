@@ -39,6 +39,7 @@ return {
       lua_ls = "lua-language-server",
       pyright = "pyright-langserver",
       ruff = "ruff",
+      rust_analyzer = "rust-analyzer",
       ts_ls = "typescript-language-server",
       gopls = "gopls",
     }

@@ -46,7 +46,7 @@ sudo dnf install -y neovim git ripgrep fd-find ctags wl-clipboard gcc make unzip
 この設定で使う補助ツールも合わせて入れるなら、次を追加します。
 
 ```bash
-sudo dnf install -y ruff gopls nodejs nodejs-npm
+sudo dnf install -y ruff gopls rust-analyzer nodejs nodejs-npm
 npm install -g pyright typescript-language-server typescript
 ```
 
@@ -64,7 +64,7 @@ npm install -g pyright typescript-language-server typescript
 
 ```bash
 sudo dnf install -y neovim git ripgrep fd-find ctags wl-clipboard gcc make unzip
-sudo dnf install -y ruff gopls nodejs nodejs-npm
+sudo dnf install -y ruff gopls rust-analyzer nodejs nodejs-npm
 npm install -g pyright typescript-language-server typescript
 ```
 
@@ -101,7 +101,7 @@ nvim --headless "+Lazy! sync" "+qa"
 ### 4. Treesitter パーサを入れる
 
 ```bash
-nvim --headless "+TSUpdateSync bash json lua markdown markdown_inline python query tsx typescript vim vimdoc yaml" "+qa"
+nvim --headless "+TSUpdateSync bash json lua markdown markdown_inline python query rust tsx typescript vim vimdoc yaml" "+qa"
 ```
 
 ### 5. 起動確認をする
@@ -144,7 +144,7 @@ commit = "cf12346a3414fa1b06af75c79faebe7f76df080a"
 ```bash
 rm -rf ~/.local/share/nvim/lazy/nvim-treesitter
 nvim --headless "+Lazy! sync" "+qa"
-nvim --headless "+TSUpdateSync bash json lua markdown markdown_inline python query tsx typescript vim vimdoc yaml" "+qa"
+nvim --headless "+TSUpdateSync bash json lua markdown markdown_inline python query rust tsx typescript vim vimdoc yaml" "+qa"
 ```
 
 その後、Neovim を再起動してください。
@@ -171,6 +171,7 @@ nvim --headless "+TSUpdateSync bash json lua markdown markdown_inline python que
 - `trouble.nvim` で診断と参照の一覧表示
 - `oil.nvim` でファイル移動
 - `ctags` を fallback として併用
+- `Rust` を読むなら `rust-analyzer` と Treesitter `rust` を追加
 
 ```lua
 vim.g.mapleader = " "
@@ -220,6 +221,7 @@ require("lazy").setup({
       vim.lsp.enable("lua_ls")
       vim.lsp.enable("pyright")
       vim.lsp.enable("ruff")
+      vim.lsp.enable("rust_analyzer")
       vim.lsp.enable("ts_ls")
       vim.lsp.enable("gopls")
     end,
@@ -289,9 +291,18 @@ require("lazy").setup({
 - `lua_ls`
 - `pyright`
 - `ruff`
+- `rust_analyzer`
 - `ts_ls`
 
 必要になってから `gopls` などを足すほうが管理しやすいです。
+
+この構成では、現時点で次の言語を主に想定しています。
+
+- Python: `pyright`, `ruff`
+- TypeScript / TSX: `ts_ls`
+- Go: `gopls`
+- Rust: `rust_analyzer`
+- Lua: `lua-language-server` を入れれば有効
 
 LSP サーバーの導入方法は複数あります。
 

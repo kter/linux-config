@@ -14,6 +14,7 @@ return {
         "markdown_inline",
         "python",
         "query",
+        "rust",
         "tsx",
         "typescript",
         "vim",
