@@ -41,6 +41,15 @@ set $menu wofi --show run  # Wayland対応ランチャー
 sudo dnf install wofi
 ```
 
+### 2.1 GUIファイラー
+
+GUIファイラーは `Thunar` を使う。
+
+インストール:
+```bash
+sudo dnf install Thunar
+```
+
 ### 3. 日本語入力（fcitx5 + mozc）
 
 #### `~/.config/environment.d/fcitx5.conf`
@@ -282,7 +291,7 @@ sudo dnf install grim slurp
 | キー | 動作 |
 |------|------|
 | `Print` | 画面全体を `~/Pictures/Screenshots/` に保存 |
-| `Shift+Print` | 範囲選択して `~/Pictures/Screenshots/` に保存 |
+| `Shift+Print` | 範囲選択して保存し、クリップボードにもコピー |
 
 ファイル名は `YYYY-MM-DD_HH-MM-SS.png` 形式で保存される。
 

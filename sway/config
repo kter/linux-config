@@ -116,7 +116,7 @@ bindsym $mod+slash exec $menu
 
 ### スクリーンショット ###
 bindsym Print exec sh -c 'mkdir -p "$HOME/Pictures/Screenshots" && grim "$HOME/Pictures/Screenshots/$(date +%Y-%m-%d_%H-%M-%S).png"'
-bindsym Shift+Print exec sh -c 'mkdir -p "$HOME/Pictures/Screenshots" && grim -g "$(slurp)" "$HOME/Pictures/Screenshots/$(date +%Y-%m-%d_%H-%M-%S).png"'
+bindsym Shift+Print exec sh -c 'mkdir -p "$HOME/Pictures/Screenshots" && file="$HOME/Pictures/Screenshots/$(date +%Y-%m-%d_%H-%M-%S).png" && grim -g "$(slurp)" - | tee "$file" | wl-copy'
 
 ### 明るさ調整 ###
 bindsym XF86MonBrightnessUp exec brightnessctl set +5%
