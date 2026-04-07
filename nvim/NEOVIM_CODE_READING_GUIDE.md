@@ -81,6 +81,7 @@ npm install -g pyright typescript-language-server typescript
     │   ├── lazy.lua
     │   └── options.lua
     └── plugins/
+        ├── claudecode.lua
         ├── lsp.lua
         ├── oil.lua
         ├── telescope.lua
@@ -365,6 +366,15 @@ ctags -R
 
 - `-`: 親ディレクトリを開く
 
+### Claude Code との連携
+
+- `<leader>ac`: Claude Code ターミナルをトグル
+- `<leader>af`: Claude Code にフォーカス
+- `<leader>aa`: 現在ファイルを Claude のコンテキストに追加
+- `<leader>as`: 選択テキストを Claude に送信 (visual mode)
+
+diff が提案されたときは `:ClaudeCodeDiffAccept` / `:ClaudeCodeDiffDeny` で適用・拒否できます。
+
 ## コードリーディングの基本ループ
 
 読むときは次の順が速いです。
@@ -430,6 +440,7 @@ Neovim 起動後:
 - `mason.nvim`: LSP サーバー管理を Neovim に寄せたいとき
 - `gitsigns.nvim`: Git 差分を読みながらコードを追いたいとき
 - `which-key.nvim`: キーマップを可視化したいとき
+- `folke/snacks.nvim`: claudecode.nvim のターミナル体験を強化したいとき（現在は native provider を使用中）
 
 ただし、コードリーディングの生産性を最初に決めるのは、プラグインの数よりも `LSP` と `grep` の運用です。
 
@@ -443,5 +454,6 @@ Neovim 起動後:
 - nvim-treesitter: <https://github.com/nvim-treesitter/nvim-treesitter>
 - trouble.nvim: <https://github.com/folke/trouble.nvim>
 - oil.nvim: <https://github.com/stevearc/oil.nvim>
+- claudecode.nvim: <https://github.com/coder/claudecode.nvim>
 - Universal Ctags: <https://docs.ctags.io/>
 - GNU Global: <https://www.gnu.org/software/global/manual/global.html>
