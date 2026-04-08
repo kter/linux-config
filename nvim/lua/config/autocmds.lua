@@ -1,3 +1,11 @@
+vim.api.nvim_create_autocmd("ColorScheme", {
+  pattern = "*",
+  callback = function()
+    vim.api.nvim_set_hl(0, "CursorLine", { bg = "#2d3a5a" })
+  end,
+})
+vim.api.nvim_set_hl(0, "CursorLine", { bg = "#2d3a5a" })
+
 local project_root_markers = {
   "pyrightconfig.json",
   "pyproject.toml",
