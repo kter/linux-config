@@ -394,6 +394,8 @@ sudo dnf install fontawesome-fonts brightnessctl
 
 ### ワークスペース
 
+ctrl + win
+
 | キー | 動作 |
 |------|------|
 | `$mod+$alt+1/2/3` | ワークスペース番号移動 |
