@@ -83,6 +83,7 @@ npm install -g pyright typescript-language-server typescript
     └── plugins/
         ├── claudecode.lua
         ├── lsp.lua
+        ├── markdown-preview.lua
         ├── oil.lua
         ├── telescope.lua
         ├── treesitter.lua
@@ -366,6 +367,10 @@ ctags -R
 
 - `-`: 親ディレクトリを開く
 
+### Markdown プレビュー
+
+- `<leader>mp`: プレビューをトグル（markdown ファイルのみ）
+
 ### Claude Code との連携
 
 - `<leader>ac`: Claude Code ターミナルをトグル
@@ -442,6 +447,8 @@ Neovim 起動後:
 - `which-key.nvim`: キーマップを可視化したいとき
 - `folke/snacks.nvim`: claudecode.nvim のターミナル体験を強化したいとき（現在は native provider を使用中）
 
+`markdown-preview.nvim` は導入済みです。markdown ファイルで `<leader>mp` を押すとブラウザでプレビューが開きます。初回インストール時は `node.js` と `npm` が必要です。
+
 ただし、コードリーディングの生産性を最初に決めるのは、プラグインの数よりも `LSP` と `grep` の運用です。
 
 ## 参考
@@ -455,5 +462,6 @@ Neovim 起動後:
 - trouble.nvim: <https://github.com/folke/trouble.nvim>
 - oil.nvim: <https://github.com/stevearc/oil.nvim>
 - claudecode.nvim: <https://github.com/coder/claudecode.nvim>
+- markdown-preview.nvim: <https://github.com/iamcco/markdown-preview.nvim>
 - Universal Ctags: <https://docs.ctags.io/>
 - GNU Global: <https://www.gnu.org/software/global/manual/global.html>

@@ -2,6 +2,7 @@
 !/.gitignore
 !/nvim/
 !/nvim/**
+/nvim/.claude/
 !/sway/
 !/sway/**
 !/waybar/
