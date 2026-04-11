@@ -42,6 +42,7 @@ return {
       rust_analyzer = "rust-analyzer",
       ts_ls = "typescript-language-server",
       gopls = "gopls",
+      eslint = "vscode-eslint-language-server",
     }
 
     for server, executable in pairs(servers) do

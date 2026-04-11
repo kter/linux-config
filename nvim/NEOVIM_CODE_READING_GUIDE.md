@@ -46,8 +46,9 @@ sudo dnf install -y neovim git ripgrep fd-find ctags wl-clipboard gcc make unzip
 この設定で使う補助ツールも合わせて入れるなら、次を追加します。
 
 ```bash
-sudo dnf install -y ruff gopls rust-analyzer nodejs nodejs-npm
-npm install -g pyright typescript-language-server typescript
+sudo dnf install -y ruff gopls rust-analyzer
+mise use -g node@lts
+mise use -g npm:pyright npm:typescript-language-server npm:typescript npm:vscode-langservers-extracted
 ```
 
 補足:
@@ -55,6 +56,8 @@ npm install -g pyright typescript-language-server typescript
 - `ctags` パッケージ名は Fedora では `ctags`
 - `fd` パッケージ名は Fedora では `fd-find`
 - `lua-language-server` は標準 `dnf` リポジトリでは見当たりませんでした
+- `vscode-langservers-extracted` に `vscode-eslint-language-server` が含まれています
+- Node.js 系ツールは `npm install -g` ではなく `mise` で管理することを推奨します
 
 ## 他のマシンで再現する手順
 
@@ -64,8 +67,16 @@ npm install -g pyright typescript-language-server typescript
 
 ```bash
 sudo dnf install -y neovim git ripgrep fd-find ctags wl-clipboard gcc make unzip
-sudo dnf install -y ruff gopls rust-analyzer nodejs nodejs-npm
-npm install -g pyright typescript-language-server typescript
+sudo dnf install -y ruff gopls rust-analyzer
+
+# mise のインストール（未導入の場合）
+curl https://mise.run | sh
+echo 'eval "$(~/.local/bin/mise activate bash)"' >> ~/.bashrc
+source ~/.bashrc
+
+# Node.js と npm パッケージを mise で管理
+mise use -g node@lts
+mise use -g npm:pyright npm:typescript-language-server npm:typescript npm:vscode-langservers-extracted
 ```
 
 ### 2. 設定ファイルを配置する
@@ -82,6 +93,7 @@ npm install -g pyright typescript-language-server typescript
     │   └── options.lua
     └── plugins/
         ├── claudecode.lua
+        ├── conform.lua
         ├── lsp.lua
         ├── markdown-preview.lua
         ├── oil.lua
@@ -301,7 +313,7 @@ require("lazy").setup({
 この構成では、現時点で次の言語を主に想定しています。
 
 - Python: `pyright`, `ruff`
-- TypeScript / TSX: `ts_ls`
+- TypeScript / TSX / React / Next.js: `ts_ls`, `eslint`
 - Go: `gopls`
 - Rust: `rust_analyzer`
 - Lua: `lua-language-server` を入れれば有効
@@ -438,6 +450,40 @@ Neovim 起動後:
 
 さらに、TypeScript や Python のファイルを開いて `gd` と `gr` が動けば初期セットアップは概ね完了です。
 
+## TypeScript / React / Next.js 開発での ESLint・Prettier 連携
+
+ESLint と Prettier の設定はリポジトリ側で管理します。Neovim はそれを読んで動くだけです。
+
+### 前提: システムへの追加インストール
+
+```bash
+mise use -g npm:vscode-langservers-extracted
+```
+
+`vscode-eslint-language-server` がこのパッケージに含まれています。
+
+### ESLint（`eslint` LSP）
+
+`lsp.lua` に `eslint = "vscode-eslint-language-server"` を追加済みです。
+
+- プロジェクトの `.eslintrc` / `eslint.config.js` を自動で読みます
+- ESLint エラーが波線で表示されます
+- `<leader>ca`（Code Action）で ESLint の自動修正が使えます
+
+### Prettier（`conform.nvim`）
+
+`conform.lua` を追加済みです。
+
+- ファイル保存時にプロジェクトの `.prettierrc` を読んで自動フォーマットします
+- Prettier がプロジェクトにない場合はスキップされます（`lsp_fallback = true`）
+- 対象: `js`, `ts`, `jsx`, `tsx`, `json`, `css`
+
+プロジェクト側での準備例:
+
+```bash
+npm install -D prettier eslint
+```
+
 ## 追加候補
 
 最初から増やしすぎないほうが良いですが、必要になったら次を検討してください。
@@ -463,5 +509,6 @@ Neovim 起動後:
 - oil.nvim: <https://github.com/stevearc/oil.nvim>
 - claudecode.nvim: <https://github.com/coder/claudecode.nvim>
 - markdown-preview.nvim: <https://github.com/iamcco/markdown-preview.nvim>
+- conform.nvim: <https://github.com/stevearc/conform.nvim>
 - Universal Ctags: <https://docs.ctags.io/>
 - GNU Global: <https://www.gnu.org/software/global/manual/global.html>
