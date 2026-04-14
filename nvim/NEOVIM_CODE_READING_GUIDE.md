@@ -97,6 +97,7 @@ mise use -g npm:pyright npm:typescript-language-server npm:typescript npm:vscode
         ├── lsp.lua
         ├── markdown-preview.lua
         ├── oil.lua
+        ├── surround.lua
         ├── telescope.lua
         ├── treesitter.lua
         └── trouble.lua
@@ -379,6 +380,27 @@ ctags -R
 
 - `-`: 親ディレクトリを開く
 
+### テキスト囲み（nvim-surround）
+
+囲いを追加:
+
+- `ys{motion}{char}`: モーション範囲を囲う（例: `ysiw"` で単語を `"` で囲う）
+- `yss{char}`: 行全体を囲う
+- `S{char}`: ビジュアル選択範囲を囲う
+
+囲いを削除・変更:
+
+- `ds{char}`: 囲いを削除（例: `ds"` で `"hello"` → `hello`）
+- `cs{old}{new}`: 囲い文字を変更（例: `cs"'` で `"hello"` → `'hello'`）
+
+特殊な文字:
+
+- `(` / `)`: スペースあり / スペースなしの `()` で囲う
+- `[` / `]`: スペースあり / スペースなしの `[]` で囲う
+- `{` / `}`: スペースあり / スペースなしの `{}` で囲う
+- `t`: HTML タグで囲う
+- `f`: 関数呼び出し形式で囲う
+
 ### Markdown プレビュー
 
 - `<leader>mp`: プレビューをトグル（markdown ファイルのみ）
@@ -493,6 +515,8 @@ npm install -D prettier eslint
 - `which-key.nvim`: キーマップを可視化したいとき
 - `folke/snacks.nvim`: claudecode.nvim のターミナル体験を強化したいとき（現在は native provider を使用中）
 
+`nvim-surround` は導入済みです。`ysiw"` で単語を囲う、`ds"` で囲いを外す、`cs"'` で囲い文字を変換できます。
+
 `markdown-preview.nvim` は導入済みです。markdown ファイルで `<leader>mp` を押すとブラウザでプレビューが開きます。初回インストール時は `node.js` と `npm` が必要です。
 
 ただし、コードリーディングの生産性を最初に決めるのは、プラグインの数よりも `LSP` と `grep` の運用です。
@@ -510,5 +534,6 @@ npm install -D prettier eslint
 - claudecode.nvim: <https://github.com/coder/claudecode.nvim>
 - markdown-preview.nvim: <https://github.com/iamcco/markdown-preview.nvim>
 - conform.nvim: <https://github.com/stevearc/conform.nvim>
+- nvim-surround: <https://github.com/kylechui/nvim-surround>
 - Universal Ctags: <https://docs.ctags.io/>
 - GNU Global: <https://www.gnu.org/software/global/manual/global.html>
