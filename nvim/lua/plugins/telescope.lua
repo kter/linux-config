@@ -60,9 +60,9 @@ return {
     local find_command
 
     if vim.fn.executable("fd") == 1 then
-      find_command = { "fd", "--type", "f", "--strip-cwd-prefix" }
+      find_command = { "fd", "--type", "f", "--strip-cwd-prefix", "--hidden" }
     elseif vim.fn.executable("fdfind") == 1 then
-      find_command = { "fdfind", "--type", "f", "--strip-cwd-prefix" }
+      find_command = { "fdfind", "--type", "f", "--strip-cwd-prefix", "--hidden" }
     end
 
     require("telescope").setup({
