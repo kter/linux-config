@@ -1,0 +1,4 @@
+# Force mise to output bash-compatible syntax when called by direnv.
+# direnv always uses bash to evaluate .envrc.
+export MISE_SHELL=bash
+export SHELL=/bin/bash
