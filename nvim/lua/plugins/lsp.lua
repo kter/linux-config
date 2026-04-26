@@ -3,12 +3,23 @@ return {
   config = function()
     vim.diagnostic.config({
       severity_sort = true,
-      virtual_text = false,
+      virtual_text = {
+        source = "if_many",
+        prefix = "●",
+      },
       underline = true,
       update_in_insert = false,
       float = {
         border = "rounded",
+        source = "always",
       },
+    })
+
+    -- Show diagnostics under the cursor when holding the cursor
+    vim.api.nvim_create_autocmd("CursorHold", {
+      callback = function()
+        vim.diagnostic.open_float(nil, { focusable = false })
+      end,
     })
 
     local group = vim.api.nvim_create_augroup("user-lsp-attach", { clear = true })

@@ -220,6 +220,20 @@ require("lazy").setup({
   {
     "neovim/nvim-lspconfig",
     config = function()
+      vim.diagnostic.config({
+        severity_sort = true,
+        virtual_text = { source = "if_many", prefix = "●" },
+        underline = true,
+        update_in_insert = false,
+        float = { border = "rounded", source = "always" },
+      })
+
+      vim.api.nvim_create_autocmd("CursorHold", {
+        callback = function()
+          vim.diagnostic.open_float(nil, { focusable = false })
+        end,
+      })
+
       local map = vim.keymap.set
 
       map("n", "gd", vim.lsp.buf.definition, { desc = "Definition" })
@@ -273,7 +287,8 @@ require("lazy").setup({
     "folke/trouble.nvim",
     opts = {},
     keys = {
-      { "<leader>xx", "<cmd>Trouble diagnostics toggle<cr>", desc = "Diagnostics list" },
+      { "<leader>xx", "<cmd>Trouble diagnostics toggle<cr>", desc = "Diagnostics list (Project)" },
+      { "<leader>xb", "<cmd>Trouble diagnostics toggle filter.buf=0<cr>", desc = "Diagnostics list (Buffer)" },
       { "<leader>xr", "<cmd>Trouble lsp_references toggle<cr>", desc = "References list" },
       { "<leader>xq", "<cmd>Trouble qflist toggle<cr>", desc = "Quickfix list" },
     },
@@ -371,8 +386,9 @@ ctags -R
 
 - `[d`: 前の診断へ
 - `]d`: 次の診断へ
-- `<leader>e`: 現在行の診断
-- `<leader>xx`: 診断一覧
+- `<leader>e`: 現在行の診断（カーソルを止めても自動表示されます）
+- `<leader>xx`: プロジェクト全体の診断一覧
+- `<leader>xb`: 現在バッファの診断一覧
 - `<leader>xr`: 参照一覧
 - `<leader>xq`: quickfix 一覧
 

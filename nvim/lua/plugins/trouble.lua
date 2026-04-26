@@ -6,7 +6,12 @@ return {
     {
       "<leader>xx",
       "<cmd>Trouble diagnostics toggle<cr>",
-      desc = "Diagnostics list",
+      desc = "Diagnostics list (Project)",
+    },
+    {
+      "<leader>xb",
+      "<cmd>Trouble diagnostics toggle filter.buf=0<cr>",
+      desc = "Diagnostics list (Buffer)",
     },
     {
       "<leader>xr",
