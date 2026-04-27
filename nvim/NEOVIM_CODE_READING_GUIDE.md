@@ -96,6 +96,7 @@ mise use -g npm:pyright npm:typescript-language-server npm:typescript npm:vscode
         ├── conform.lua
         ├── lsp.lua
         ├── markdown-preview.lua
+        ├── neo-tree.lua
         ├── oil.lua
         ├── surround.lua
         ├── telescope.lua
@@ -394,7 +395,8 @@ ctags -R
 
 ### ファイル操作
 
-- `-`: 親ディレクトリを開く
+- `<leader>E`: ファイルツリーをトグル（neo-tree）
+- `-`: 親ディレクトリを開く（oil.nvim）
 
 ### テキスト囲み（nvim-surround）
 
@@ -448,7 +450,7 @@ diff が提案されたときは `:ClaudeCodeDiffAccept` / `:ClaudeCodeDiffDeny`
 `Sway` では、Neovim を中心に据えたほうが扱いやすいです。
 
 - 1 ワークスペース 1 主題にする
-- ファイルツリーを常駐させず、必要時だけ `Oil` を開く
+- ファイルツリーは `<leader>E` で neo-tree を、ファイル移動は `-` で oil.nvim を使い分ける
 - 参照や診断は `Trouble` や quickfix に集約する
 - 分割は `Neovim` 内、タスク分離は `Sway` 側で行う
 
@@ -531,6 +533,8 @@ npm install -D prettier eslint
 - `which-key.nvim`: キーマップを可視化したいとき
 - `folke/snacks.nvim`: claudecode.nvim のターミナル体験を強化したいとき（現在は native provider を使用中）
 
+`neo-tree.nvim` は導入済みです。`<leader>E` でファイルツリーをサイドバー表示できます。Git status 表示やバッファ一覧への切り替えにも対応しています。
+
 `nvim-surround` は導入済みです。`ysiw"` で単語を囲う、`ds"` で囲いを外す、`cs"'` で囲い文字を変換できます。
 
 `markdown-preview.nvim` は導入済みです。markdown ファイルで `<leader>mp` を押すとブラウザでプレビューが開きます。初回インストール時は `node.js` と `npm` が必要です。
@@ -547,6 +551,7 @@ npm install -D prettier eslint
 - nvim-treesitter: <https://github.com/nvim-treesitter/nvim-treesitter>
 - trouble.nvim: <https://github.com/folke/trouble.nvim>
 - oil.nvim: <https://github.com/stevearc/oil.nvim>
+- neo-tree.nvim: <https://github.com/nvim-neo-tree/neo-tree.nvim>
 - claudecode.nvim: <https://github.com/coder/claudecode.nvim>
 - markdown-preview.nvim: <https://github.com/iamcco/markdown-preview.nvim>
 - conform.nvim: <https://github.com/stevearc/conform.nvim>
