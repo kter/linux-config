@@ -40,7 +40,6 @@ return {
         map("K", vim.lsp.buf.hover, "LSP Hover")
         map("<leader>rn", vim.lsp.buf.rename, "LSP Rename")
         map("<leader>ca", vim.lsp.buf.code_action, "LSP Code Action")
-        map("<leader>e", vim.diagnostic.open_float, "Line Diagnostics")
         map("[d", vim.diagnostic.goto_prev, "Prev Diagnostic")
         map("]d", vim.diagnostic.goto_next, "Next Diagnostic")
       end,
