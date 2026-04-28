@@ -11,4 +11,4 @@ map("n", "<leader>wo", "<C-w>o", { desc = "Only window" })
 
 map("n", "<leader>tt", "<cmd>tselect <C-R><C-W><cr>", { desc = "Select tag under cursor" })
 
-map("n", "<leader>e", vim.diagnostic.open_float, { desc = "Line Diagnostics" })
+map("n", "<leader>e", "<cmd>Neotree toggle<cr>", { desc = "Toggle file tree" })
