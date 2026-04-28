@@ -94,6 +94,7 @@ mise use -g npm:pyright npm:typescript-language-server npm:typescript npm:vscode
     └── plugins/
         ├── claudecode.lua
         ├── conform.lua
+        ├── git.lua
         ├── lsp.lua
         ├── markdown-preview.lua
         ├── neo-tree.lua
@@ -432,6 +433,14 @@ ctags -R
 
 diff が提案されたときは `:ClaudeCodeDiffAccept` / `:ClaudeCodeDiffDeny` で適用・拒否できます。
 
+### Git（差分・履歴）
+
+- `<leader>gd`: JetBrains 風の rich diff ビューワーを開く (Diffview)
+- `<leader>gh`: 現在のファイルの変更履歴を確認
+- `]c` / `[c`: ファイル内の変更箇所（hunk）へ移動 (Gitsigns)
+- `<leader>gp`: 現在の変更箇所をその場でプレビュー
+- `<leader>gb`: 現在行の git blame を表示
+
 ## コードリーディングの基本ループ
 
 読むときは次の順が速いです。
@@ -529,9 +538,10 @@ npm install -D prettier eslint
 最初から増やしすぎないほうが良いですが、必要になったら次を検討してください。
 
 - `mason.nvim`: LSP サーバー管理を Neovim に寄せたいとき
-- `gitsigns.nvim`: Git 差分を読みながらコードを追いたいとき
 - `which-key.nvim`: キーマップを可視化したいとき
 - `folke/snacks.nvim`: claudecode.nvim のターミナル体験を強化したいとき（現在は native provider を使用中）
+
+`diffview.nvim` および `gitsigns.nvim` は導入済みです。JetBrains のようなリッチな Git 差分表示が可能です。
 
 `neo-tree.nvim` は導入済みです。`<leader>E` でファイルツリーをサイドバー表示できます。Git status 表示やバッファ一覧への切り替えにも対応しています。
 
@@ -555,6 +565,9 @@ npm install -D prettier eslint
 - claudecode.nvim: <https://github.com/coder/claudecode.nvim>
 - markdown-preview.nvim: <https://github.com/iamcco/markdown-preview.nvim>
 - conform.nvim: <https://github.com/stevearc/conform.nvim>
-- nvim-surround: <https://github.com/kylechui/nvim-surround>
-- Universal Ctags: <https://docs.ctags.io/>
+- - nvim-surround: <https://github.com/kylechui/nvim-surround>
+- - diffview.nvim: <https://github.com/sindrets/diffview.nvim>
+- - gitsigns.nvim: <https://github.com/lewis6991/gitsigns.nvim>
+- - Universal Ctags: <https://docs.ctags.io/>
+
 - GNU Global: <https://www.gnu.org/software/global/manual/global.html>
