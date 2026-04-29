@@ -23,6 +23,21 @@ return {
   {
     "lewis6991/gitsigns.nvim",
     event = { "BufReadPre", "BufNewFile" },
+    keys = {
+      { "<leader>gs", function() require("gitsigns").stage_hunk() end,                                                     desc = "Stage hunk" },
+      { "<leader>gs", function() require("gitsigns").stage_hunk({ vim.fn.line("."), vim.fn.line("v") }) end,               desc = "Stage hunk",        mode = "v" },
+      { "<leader>gr", function() require("gitsigns").reset_hunk() end,                                                     desc = "Reset hunk" },
+      { "<leader>gr", function() require("gitsigns").reset_hunk({ vim.fn.line("."), vim.fn.line("v") }) end,               desc = "Reset hunk",        mode = "v" },
+      { "<leader>gS", function() require("gitsigns").stage_buffer() end,                                                   desc = "Stage buffer" },
+      { "<leader>gu", function() require("gitsigns").undo_stage_hunk() end,                                                desc = "Undo stage hunk" },
+      { "<leader>gR", function() require("gitsigns").reset_buffer() end,                                                   desc = "Reset buffer" },
+      { "<leader>gp", function() require("gitsigns").preview_hunk() end,                                                   desc = "Preview hunk" },
+      { "<leader>gb", function() require("gitsigns").blame_line({ full = true }) end,                                      desc = "Blame line" },
+      { "<leader>tb", function() require("gitsigns").toggle_current_line_blame() end,                                      desc = "Toggle line blame" },
+      { "<leader>hd", function() require("gitsigns").diffthis() end,                                                       desc = "Diff this" },
+      { "<leader>hD", function() require("gitsigns").diffthis("~") end,                                                    desc = "Diff this ~" },
+      { "<leader>td", function() require("gitsigns").toggle_deleted() end,                                                 desc = "Toggle deleted" },
+    },
     opts = {
       on_attach = function(bufnr)
         local gs = package.loaded.gitsigns
@@ -33,7 +48,7 @@ return {
           vim.keymap.set(mode, l, r, opts)
         end
 
-        -- Navigation
+        -- Navigation (buffer-local expr maps required for diff mode fallback)
         map("n", "]c", function()
           if vim.wo.diff then return "]c" end
           vim.schedule(function() gs.next_hunk() end)
@@ -45,21 +60,6 @@ return {
           vim.schedule(function() gs.prev_hunk() end)
           return "<Ignore>"
         end, { expr = true, desc = "Prev hunk" })
-
-        -- Actions
-        map("n", "<leader>gs", gs.stage_hunk, { desc = "Stage hunk" })
-        map("n", "<leader>gr", gs.reset_hunk, { desc = "Reset hunk" })
-        map("v", "<leader>gs", function() gs.stage_hunk({ vim.fn.line("."), vim.fn.line("v") }) end, { desc = "Stage hunk" })
-        map("v", "<leader>gr", function() gs.reset_hunk({ vim.fn.line("."), vim.fn.line("v") }) end, { desc = "Reset hunk" })
-        map("n", "<leader>gS", gs.stage_buffer, { desc = "Stage buffer" })
-        map("n", "<leader>gu", gs.undo_stage_hunk, { desc = "Undo stage hunk" })
-        map("n", "<leader>gR", gs.reset_buffer, { desc = "Reset buffer" })
-        map("n", "<leader>gp", gs.preview_hunk, { desc = "Preview hunk" })
-        map("n", "<leader>gb", function() gs.blame_line({ full = true }) end, { desc = "Blame line" })
-        map("n", "<leader>tb", gs.toggle_current_line_blame, { desc = "Toggle line blame" })
-        map("n", "<leader>hd", gs.diffthis, { desc = "Diff this" })
-        map("n", "<leader>hD", function() gs.diffthis("~") end, { desc = "Diff this ~" })
-        map("n", "<leader>td", gs.toggle_deleted, { desc = "Toggle deleted" })
 
         -- Text object
         map({ "o", "x" }, "ih", ":<C-U>Gitsigns select_hunk<CR>", { desc = "Select hunk" })
