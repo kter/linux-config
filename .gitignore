@@ -7,3 +7,5 @@
 !/sway/**
 !/waybar/
 !/waybar/**
+!/toshy/
+!/toshy/toshy_config.py
