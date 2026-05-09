@@ -2360,10 +2360,11 @@ modmap("Cond modmap - Terms - Mac kbd", {
 # 1. 物理的な入れ替え
 # ---------------------------------------------------------
 # Sway 側の Mod4/Mod1 バインドを壊さないため、物理的な Win/Alt の入れ替えは行わない。
-# ここでは CapsLock -> Ctrl だけを維持し、Command 風ショートカットは
-# 下の keymap で Left Command(= 物理 Win/Super) に割り当てる。
+# CapsLock は RIGHT_META にマップする。LEFT_CTRL にすると Super+A 出力の C-a と
+# CapsLock+A 由来の C-a が区別できず、Mac-like Cursor とのチェーン干渉が発生するため。
+# RIGHT_META ベースにすることで Super+A(→C-a)と CapsLock+A(→RCmd-a)が構造的に分離される。
 define_modmap({
-    Key.CAPSLOCK: Key.LEFT_CTRL,    # CapsLock -> Control(左)
+    Key.CAPSLOCK: Key.RIGHT_META,    # CapsLock -> Right Meta (Emacs modifier 専用)
 })
 
 # ---------------------------------------------------------
@@ -2387,7 +2388,7 @@ cursor_exclude_regex = r"^(foot|gnome-terminal|gnome-shells|konsole|Alacritty|ki
 keymap("User Command Shortcuts", {
     K("LCmd-f"): K("C-f"),    # Cmd + F -> 検索
     K("RC-f"): K("C-f"),      # 物理 LeftAlt 側の仮想 Cmd でも検索
-    K("Super-a"): K("C-a"),    # Super + A -> 全選択 (General GUI の Super-a→Home を上書き)
+    K("LCmd-a"): K("C-a"),    # Super + A -> 全選択 (LCmd=LEFT_META のみ、RCmd=CapsLockと干渉しない)
     K("LCmd-c"): K("C-c"),    # Cmd + C -> コピー
     K("LCmd-v"): K("C-v"),    # Cmd + V -> 貼り付け
     K("LCmd-x"): K("C-x"),    # Cmd + X -> 切り取り
@@ -2397,32 +2398,29 @@ keymap("User Command Shortcuts", {
     K("LCmd-w"): K("C-w"),    # Cmd + W -> タブを閉じる
     K("LCmd-l"): K("C-l"),    # Cmd + L -> アドレスバーを選択
     K("LCmd-r"): K("C-r"),    # Cmd + R -> 更新
-    K("Super-n"): K("C-n"),             # Super + N -> 新規ウィンドウ (General GUI の Super-n→Down を上書き)
-    K("Shift-Super-n"): K("Shift-C-n"), # Super + Shift + N -> シークレットウィンドウ
+    K("LCmd-n"): K("C-n"),             # Super + N -> 新規ウィンドウ (LEFT_META のみ、CapsLock不干渉)
+    K("Shift-LCmd-n"): K("Shift-C-n"), # Super + Shift + N -> シークレットウィンドウ
 }, when = matchProps(not_clas=term_regex))
 
-# B. Mac風カーソル移動(元CapsLock)系
-# 【ターミナル・IDE・ブラウザ以外】のアプリで有効
-# ブラウザを除外する理由: toshy はキーマップをチェーン処理するため、
-# Super+N → C-n (User Command Shortcuts) → down (本キーマップ) と連鎖して
-# 新規ウィンドウの代わりに下スクロールになる問題を防ぐ。
+# B. Mac風カーソル移動(CapsLock → RIGHT_META 経由)系
+# CapsLock が RIGHT_META にマップされているため、RCmd-* で受ける。
+# Super+A 等の出力(C-a/C-n)は LEFT_CTRL ベースなので RCmd-* にはマッチせず干渉しない。
+# 【ターミナル・IDE以外】のアプリ（Chrome、Slack、設定画面等）で有効
 keymap("User Mac-like Cursor Movement", {
-    K("C-a"): K("home"),
-    K("C-e"): K("end"),
-    K("C-f"): K("right"),
-    K("C-b"): K("left"),
-    K("C-p"): K("up"),
-    K("C-n"): K("down"),
-    K("C-d"): K("delete"),
-    K("C-h"): K("backspace"),
-}, when = lambda ctx:
-    matchProps(not_clas=cursor_exclude_regex)(ctx) and
-    not hmp_is_browser(ctx)
-)
+    K("RCmd-a"): K("home"),
+    K("RCmd-e"): K("end"),
+    K("RCmd-f"): K("right"),
+    K("RCmd-b"): K("left"),
+    K("RCmd-p"): K("up"),
+    K("RCmd-n"): K("down"),
+    K("RCmd-d"): K("delete"),
+    K("RCmd-h"): K("backspace"),
+}, when = matchProps(not_clas=cursor_exclude_regex))
 
 # C. IME切り替え：全アプリ共通
 keymap("System Global", {
-    K("C-Space"): K("C-Space"),
+    K("C-Space"): K("C-Space"),      # 物理 Ctrl+Space → IME切り替え
+    K("RCmd-Space"): K("C-Space"),   # CapsLock+Space → IME切り替え
 })
 
 ###  SLICE_MARK_END: user_custom_modmaps  ###  EDITS OUTSIDE THESE MARKS WILL BE LOST ON UPGRADE
