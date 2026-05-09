@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Based on Toshy by RedBearAK (https://github.com/RedBearAK/Toshy), GNU General Public License v3.0
 __version__ = '20260224'
 ###############################################################################
 ############################   Welcome to Toshy!   ############################
