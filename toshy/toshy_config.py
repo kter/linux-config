@@ -2417,6 +2417,28 @@ keymap("User Mac-like Cursor Movement", {
     K("RCmd-h"): K("backspace"),
 }, when = matchProps(not_clas=cursor_exclude_regex))
 
+# D. ターミナル内 CapsLock → Ctrl エミュレーション
+# CapsLock(=RIGHT_META) を terminal 内では Ctrl として振る舞わせる。
+# Mac-like Cursor Movement は cursor_exclude_regex で terminal を除外しており、
+# このキーマップで補完する。
+keymap("User Terminal CapsLock-as-Ctrl", {
+    K("RCmd-c"): K("C-c"),    # SIGINT
+    K("RCmd-d"): K("C-d"),    # EOF
+    K("RCmd-z"): K("C-z"),    # SIGTSTP
+    K("RCmd-a"): K("C-a"),    # 行頭
+    K("RCmd-e"): K("C-e"),    # 行末
+    K("RCmd-f"): K("C-f"),    # 1文字右
+    K("RCmd-b"): K("C-b"),    # 1文字左
+    K("RCmd-p"): K("C-p"),    # 履歴前
+    K("RCmd-n"): K("C-n"),    # 履歴次
+    K("RCmd-h"): K("C-h"),    # backspace
+    K("RCmd-l"): K("C-l"),    # 画面クリア
+    K("RCmd-u"): K("C-u"),    # 行削除
+    K("RCmd-w"): K("C-w"),    # 直前単語削除
+    K("RCmd-k"): K("C-k"),    # 行末まで削除
+    K("RCmd-r"): K("C-r"),    # 履歴検索
+}, when = matchProps(clas=term_regex))
+
 # C. IME切り替え：全アプリ共通
 keymap("System Global", {
     K("C-Space"): K("C-Space"),      # 物理 Ctrl+Space → IME切り替え
