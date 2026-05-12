@@ -17,6 +17,13 @@ local project_root_markers = {
 
 local group = vim.api.nvim_create_augroup("user-project-root", { clear = true })
 
+vim.api.nvim_create_autocmd("FileType", {
+  pattern = "json",
+  callback = function()
+    vim.opt_local.equalprg = "npx prettier --parser json --tab-width 2"
+  end,
+})
+
 vim.api.nvim_create_autocmd("BufEnter", {
   group = group,
   callback = function(event)
