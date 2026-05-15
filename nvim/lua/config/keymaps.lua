@@ -1,5 +1,7 @@
 local map = vim.keymap.set
 
+map("t", "<C-\\>", "<C-\\><C-N>", { desc = "Exit terminal mode" })
+
 map("n", "<C-h>", "<C-w>h", { desc = "Move focus left" })
 map("n", "<C-j>", "<C-w>j", { desc = "Move focus down" })
 map("n", "<C-k>", "<C-w>k", { desc = "Move focus up" })
