@@ -2422,7 +2422,9 @@ keymap("User Mac-like Cursor Movement", {
 # Mac-like Cursor Movement は cursor_exclude_regex で terminal を除外しており、
 # このキーマップで補完する。
 keymap("User Terminal CapsLock-as-Ctrl", {
-    K("RCmd-c"): K("C-c"),    # SIGINT
+    K("RCmd-c"): K("C-c"),              # SIGINT
+    K("Shift-RCmd-c"): K("Shift-C-c"),  # コピー (foot/ghostty 等)
+    K("Shift-RCmd-v"): K("Shift-C-v"),  # ペースト
     K("RCmd-d"): K("C-d"),    # EOF
     K("RCmd-z"): K("C-z"),    # SIGTSTP
     K("RCmd-a"): K("C-a"),    # 行頭
