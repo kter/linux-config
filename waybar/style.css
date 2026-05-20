@@ -51,6 +51,7 @@ window#waybar {
 #backlight,
 #pulseaudio,
 #power-profiles-daemon,
+#custom-usbc-power,
 #battery,
 #clock,
 #tray,
@@ -64,9 +65,14 @@ window#waybar {
 #backlight,
 #pulseaudio,
 #power-profiles-daemon,
+#custom-usbc-power,
 #battery {
     border-right: 1px solid #313244;
 }
+
+/* USB-C 電力 */
+#custom-usbc-power.connected { color: #a6e3a1; }
+#custom-usbc-power.disconnected { color: #6c7086; }
 
 /* ネットワーク */
 #network.disconnected {

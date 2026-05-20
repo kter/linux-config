@@ -14,6 +14,7 @@
         "backlight",
         "pulseaudio",
         "power-profiles-daemon",
+        "custom/usbc-power",
         "battery",
         "clock",
         "tray"
@@ -62,6 +63,14 @@
             "balanced": "均",
             "power-saver": "省"
         }
+    },
+
+    "custom/usbc-power": {
+        "exec": "~/.config/waybar/scripts/usbc-power.sh",
+        "return-type": "json",
+        "interval": 5,
+        "format": "{}",
+        "tooltip": true
     },
 
     "battery": {
