@@ -52,6 +52,7 @@ window#waybar {
 #pulseaudio,
 #power-profiles-daemon,
 #custom-usbc-power,
+#temperature,
 #battery,
 #clock,
 #tray,
@@ -66,8 +67,24 @@ window#waybar {
 #pulseaudio,
 #power-profiles-daemon,
 #custom-usbc-power,
+#temperature,
 #battery {
     border-right: 1px solid #313244;
+}
+
+/* CPU温度 */
+#temperature.cpu {
+    color: #89dceb;
+}
+
+/* GPU温度 */
+#temperature.gpu {
+    color: #b4befe;
+}
+
+/* 高温アラート */
+#temperature.critical {
+    color: #f38ba8;
 }
 
 /* USB-C 電力 */
