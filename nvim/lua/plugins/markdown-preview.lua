@@ -6,6 +6,7 @@ return {
     vim.fn.system({ "npm", "install", "--prefix", plugin.dir .. "/app" })
   end,
   init = function()
+    vim.g.mkdp_auto_close = 0
     vim.api.nvim_create_autocmd("FileType", {
       pattern = "markdown",
       callback = function()
