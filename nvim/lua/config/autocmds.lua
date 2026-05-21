@@ -40,3 +40,32 @@ vim.api.nvim_create_autocmd("BufEnter", {
     vim.cmd("lcd " .. vim.fn.fnameescape(root))
   end,
 })
+
+vim.api.nvim_create_autocmd("TextYankPost", {
+  group = vim.api.nvim_create_augroup("user-claudecode-yank-strip", { clear = true }),
+  callback = function()
+    if vim.v.event.operator ~= "y" then return end
+    if vim.bo.buftype ~= "terminal" then return end
+    local bufname = vim.api.nvim_buf_get_name(0):lower()
+    if not bufname:find("claude") then return end
+
+    local lines = vim.v.event.regcontents
+    local changed = false
+    for i, line in ipairs(lines) do
+      local stripped = line:gsub("^\226\150\142 ?", "")
+      if stripped ~= line then
+        lines[i] = stripped
+        changed = true
+      end
+    end
+    if not changed then return end
+
+    local regtype = vim.v.event.regtype
+    local regname = vim.v.event.regname
+    vim.fn.setreg("+", lines, regtype)
+    vim.fn.setreg('"', lines, regtype)
+    if regname ~= "" and regname ~= "+" and regname ~= '"' then
+      vim.fn.setreg(regname, lines, regtype)
+    end
+  end,
+})
