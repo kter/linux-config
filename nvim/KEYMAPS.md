@@ -90,8 +90,17 @@
 | `<leader>gd` | Diffview を開く（現在の変更） |
 | `<leader>gh` | 現在のファイルの履歴を表示 |
 | `<leader>gH` | 現在のブランチの履歴を表示 |
+| `<leader>gq` | Diffview を閉じる |
 
-> Diffview内: `q` で閉じる、`j`/`k` でファイル選択
+**PR / ブランチ差分レビュー用コマンド**
+
+| コマンド | 説明 |
+|------|------|
+| `:DiffviewOpen origin/main...HEAD` | 現在のブランチが main から分岐して以降の全変更を表示 |
+| `:DiffviewOpen origin/main...feature/foo` | 任意のブランチの差分を表示 |
+| `:DiffviewFileHistory` | リポジトリ全体のファイル履歴 |
+
+> Diffview内: `<tab>`/`<S-tab>` 次/前ファイル、`X` レビュー済みマーク、`-` ステージトグル、`q` 閉じる
 
 ### Gitsigns（バッファ内の差分）
 
@@ -104,6 +113,57 @@
 | `<leader>gp` | 変更箇所のプレビューをフロート表示 |
 | `<leader>gb` | 現在行の git blame を表示 |
 | `<leader>tb` | 行ごとの blame 表示をトグル |
+
+---
+
+## GitHub PR レビュー（Octo）
+
+> 前提: `gh auth login` 済み、リポジトリに GitHub remote が設定されていること
+
+### キーマップ（`<leader>o` プレフィックス）
+
+| キー | 説明 |
+|------|------|
+| `<leader>opl` | PR 一覧（Telescope） |
+| `<leader>opo` | 現在のブランチを PR としてチェックアウト |
+| `<leader>opr` | レビュー開始（diffview UI が開く） |
+| `<leader>ops` | レビューを送信（comment / approve / request changes 選択） |
+| `<leader>opc` | PR の CI チェック状況を表示 |
+| `<leader>oil` | Issue 一覧（Telescope） |
+
+### 主要 `:Octo` コマンド
+
+| コマンド | 説明 |
+|------|------|
+| `:Octo pr list` | PR 一覧 |
+| `:Octo pr checkout <num>` | 指定番号の PR をチェックアウト |
+| `:Octo pr edit <num>` | PR バッファを開く（説明編集・コメント追加） |
+| `:Octo pr checks` | CI ステータス |
+| `:Octo pr merge [commit\|squash\|rebase]` | マージ |
+| `:Octo review start` | レビューセッション開始 |
+| `:Octo review submit` | レビュー送信 |
+| `:Octo review resume` | 中断したレビューを再開 |
+| `:Octo review discard` | レビュー破棄 |
+| `:Octo issue list` | Issue 一覧 |
+| `:Octo issue create` | Issue 作成 |
+
+### レビューセッション中のバッファ内キーマップ（plugin デフォルト）
+
+| キー | 説明 |
+|------|------|
+| `<space>ca` | 行コメント追加（normal / visual） |
+| `<space>sa` | suggestion を追加（visual で範囲選択して） |
+| `<space>ct` | スレッドコメント追加 |
+| `]q` / `[q` | 次/前のコメント・スレッドへ |
+| `]t` / `[t` | 次/前のスレッドへ |
+
+### PR レビューのワークフロー例
+
+1. `<leader>opl` → Telescope で PR を選択
+2. `:Octo pr checkout` でローカルにチェックアウト
+3. `<leader>opr` でレビュー開始（diffview UI が開く）
+4. `<tab>` でファイルを巡回、コメントしたい行で `<space>ca`
+5. `<leader>ops` で送信（approve / comment / request changes を選択）
 
 ---
 

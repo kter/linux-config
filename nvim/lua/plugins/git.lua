@@ -19,6 +19,31 @@ return {
     },
   },
 
+  -- GitHub PR review via gh CLI
+  {
+    "pwntester/octo.nvim",
+    cmd = "Octo",
+    dependencies = {
+      "nvim-lua/plenary.nvim",
+      "nvim-telescope/telescope.nvim",
+      "nvim-tree/nvim-web-devicons",
+    },
+    keys = {
+      { "<leader>opl", "<cmd>Octo pr list<cr>",        desc = "Octo: PR list" },
+      { "<leader>opo", "<cmd>Octo pr checkout<cr>",    desc = "Octo: PR checkout" },
+      { "<leader>opr", "<cmd>Octo review start<cr>",   desc = "Octo: PR review start" },
+      { "<leader>ops", "<cmd>Octo review submit<cr>",  desc = "Octo: PR review submit" },
+      { "<leader>opc", "<cmd>Octo pr checks<cr>",      desc = "Octo: PR checks" },
+      { "<leader>oil", "<cmd>Octo issue list<cr>",     desc = "Octo: Issue list" },
+    },
+    opts = {
+      enable_builtin = true,
+      default_to_projects_v2 = false,
+      use_local_fs = true,
+      picker = "telescope",
+    },
+  },
+
   -- Git signs in signcolumn and hunk operations
   {
     "lewis6991/gitsigns.nvim",
