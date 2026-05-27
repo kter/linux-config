@@ -52,6 +52,8 @@ window#waybar {
 #pulseaudio,
 #power-profiles-daemon,
 #custom-usbc-power,
+#cpu,
+#memory,
 #temperature,
 #battery,
 #clock,
@@ -67,9 +69,37 @@ window#waybar {
 #pulseaudio,
 #power-profiles-daemon,
 #custom-usbc-power,
+#cpu,
+#memory,
 #temperature,
 #battery {
     border-right: 1px solid #313244;
+}
+
+/* CPU 使用率 */
+#cpu {
+    color: #cba6f7;
+}
+
+#cpu.warning {
+    color: #f9e2af;
+}
+
+#cpu.critical {
+    color: #f38ba8;
+}
+
+/* メモリ使用率 */
+#memory {
+    color: #f5c2e7;
+}
+
+#memory.warning {
+    color: #f9e2af;
+}
+
+#memory.critical {
+    color: #f38ba8;
 }
 
 /* CPU温度 */
