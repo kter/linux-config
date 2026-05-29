@@ -113,6 +113,11 @@ bindsym $alt+a gaps inner current toggle 20; gaps outer current toggle 20
 ### ピクチャーインピクチャー風 (border toggle) ###
 bindsym $alt+p border toggle
 
+### ウインドウを閉じる ###
+bindsym $mod+Shift+q kill
+bindsym $alt+F4 kill
+bindsym $alt+Shift+q kill
+
 ### ターミナルとランチャー ###
 bindsym $mod+Return exec $term
 bindsym $mod+slash exec $menu
