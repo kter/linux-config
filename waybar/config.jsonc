@@ -13,8 +13,6 @@
         "network",
         "backlight",
         "pulseaudio",
-        "power-profiles-daemon",
-        "custom/usbc-power",
         "cpu",
         "memory",
         "temperature#cpu",
@@ -58,20 +56,9 @@
         "tooltip-format": "音量: {volume}%"
     },
 
-    "power-profiles-daemon": {
-        "format": " {icon}",
-        "tooltip-format": "電源プロファイル: {profile}\nドライバ: {driver}\n左クリックで切替",
-        "format-icons": {
-            "default": "電",
-            "performance": "高",
-            "balanced": "均",
-            "power-saver": "省"
-        }
-    },
-
     "cpu": {
         "interval": 2,
-        "format": " {usage}% {icon0}{icon1}{icon2}{icon3}{icon4}{icon5}{icon6}{icon7}",
+        "format": " {usage}% {icon0}{icon1}{icon2}{icon3}{icon4}{icon5}{icon6}{icon7}{icon8}{icon9}{icon10}{icon11}{icon12}{icon13}{icon14}{icon15}",
         "format-icons": [
             "<span color='#a6e3a1'>▁</span>",
             "<span color='#a6e3a1'>▂</span>",
@@ -113,14 +100,6 @@
         "format": " {temperatureC}°C",
         "interval": 5,
         "tooltip-format": "GPU: {temperatureC}°C"
-    },
-
-    "custom/usbc-power": {
-        "exec": "~/.config/waybar/scripts/usbc-power.sh",
-        "return-type": "json",
-        "interval": 5,
-        "format": "{}",
-        "tooltip": true
     },
 
     "battery": {
