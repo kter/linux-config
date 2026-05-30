@@ -9,3 +9,5 @@
 !/waybar/**
 !/toshy/
 !/toshy/toshy_config.py
+!/wireplumber/
+!/wireplumber/**
