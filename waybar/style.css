@@ -51,7 +51,6 @@ window#waybar {
 #backlight,
 #pulseaudio,
 #power-profiles-daemon,
-#custom-usbc-power,
 #cpu,
 #memory,
 #temperature,
@@ -68,7 +67,6 @@ window#waybar {
 #backlight,
 #pulseaudio,
 #power-profiles-daemon,
-#custom-usbc-power,
 #cpu,
 #memory,
 #temperature,
@@ -116,10 +114,6 @@ window#waybar {
 #temperature.critical {
     color: #f38ba8;
 }
-
-/* USB-C 電力 */
-#custom-usbc-power.connected { color: #a6e3a1; }
-#custom-usbc-power.disconnected { color: #6c7086; }
 
 /* ネットワーク */
 #network.disconnected {

@@ -13,6 +13,7 @@
         "network",
         "backlight",
         "pulseaudio",
+        "power-profiles-daemon",
         "cpu",
         "memory",
         "temperature#cpu",
@@ -54,6 +55,17 @@
         "scroll-step": 5,
         "on-click": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
         "tooltip-format": "音量: {volume}%"
+    },
+
+    "power-profiles-daemon": {
+        "format": " {icon}",
+        "tooltip-format": "電源プロファイル: {profile}\nドライバ: {driver}\n左クリックで切替",
+        "format-icons": {
+            "default": "電",
+            "performance": "高",
+            "balanced": "均",
+            "power-saver": "省"
+        }
     },
 
     "cpu": {
