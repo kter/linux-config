@@ -37,10 +37,10 @@
     },
 
     "network": {
-        "format-wifi": " {essid}",
+        "format-wifi": " {signalStrength}%",
         "format-ethernet": " {ipaddr}",
         "format-disconnected": "⚠ 未接続",
-        "tooltip-format": "{ifname}: {ipaddr}\n強度: {signalStrength}%"
+        "tooltip-format": "{essid}\n{ifname}: {ipaddr}\n強度: {signalStrength}%"
     },
 
     "backlight": {
