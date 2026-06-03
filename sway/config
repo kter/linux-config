@@ -9,7 +9,7 @@ font pango:Noto Sans CJK JP 10
 # the 21:9 mode instead of 16:9 3840x2160 to avoid aspect-ratio distortion.
 output eDP-1 mode 1920x1080@60.049Hz position 0 0 scale 1
 output HDMI-A-1 mode 3440x1440@49.987Hz position 1920 0 scale 1
-output DP-4 transform 270
+output DP-4 transform 90
 
 ### アプリ起動 ###
 bindsym Shift+$mod+m exec mpv "$(wl-paste)"
