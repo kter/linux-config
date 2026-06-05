@@ -1,5 +1,7 @@
 set -gx LC_CTYPE en_US.UTF-8
 
+fish_add_path ~/bin
+
 ~/.local/bin/mise activate fish | source
 
 direnv hook fish | source
