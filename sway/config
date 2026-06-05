@@ -156,7 +156,7 @@ bindsym $mod+minus scratchpad show
 # Wallpaper: fallback until zenith-wallpaper generates its first image
 output * bg #000000 solid_color
 # Start zenith-wallpaper (generates per-output PNGs and applies them)
-exec ~/.local/bin/zenith-wallpaper
+exec /usr/bin/zenith-wallpaper
 
 exec_always --no-startup-id sh -c 'pkill -x waybar; exec waybar -c "$HOME/.config/waybar/config.jsonc" -s "$HOME/.config/waybar/style.css"'
 

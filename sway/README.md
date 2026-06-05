@@ -144,6 +144,34 @@ font pango:Noto Sans CJK JP 10
 
 Fedora では `google-noto-sans-cjk-fonts` に含まれる `Noto Sans CJK JP` を利用できる。
 
+### 6. スクリーンロックのパスワード認証（`/etc/pam.d/swaylock`）
+
+**症状**: ロック画面でパスワードを入力して Enter しても「Verifying」のまま固まる。指紋認証は通過できる。
+
+**真因**: `/etc/pam.d/swaylock` がデフォルトで `auth include login` → `system-auth` を経由するが、そのスタックで `pam_fprintd`（指紋）が `pam_unix`（パスワード）より**先に実行**される。パスワードを打っても PAM がまず「指をスワイプせよ」と待機してブロックするため、swaylock が固まる。
+
+**修正**: `/etc/pam.d/swaylock` を `password-auth` 参照のみに書き換える。指紋は swaylock では使わず、パスワードのみでアンロックする（sudo・ログイン等での指紋認証は従来どおり有効）。
+
+```
+sudo cp /etc/pam.d/swaylock /etc/pam.d/swaylock.bak
+
+sudo tee /etc/pam.d/swaylock << 'EOF'
+#
+# PAM configuration for swaylock — password only (no fingerprint).
+#
+auth       include    password-auth
+account    include    password-auth
+session    include    password-auth
+EOF
+```
+
+これでパスワード入力 → 即時アンロックされる。
+
+> **備考**: `pam_fprintd_grosshack` でパスワード＋指紋の並行認証を試みたが、
+> 認証経路に 900 行超の第三者コードを導入するリスクから採用を見送った。
+
+> **注意**: このファイルは `swaylock` rpm が所有するが `authselect` の管理対象外なので編集は永続する。ただし `swaylock` パッケージ更新時に `/etc/pam.d/swaylock.rpmnew` が生成される場合があるため、更新後は `diff /etc/pam.d/swaylock /etc/pam.d/swaylock.rpmnew` で確認し、必要なら再適用すること。
+
 ---
 
 ## コピペ
