@@ -166,6 +166,7 @@ exec --no-startup-id /usr/bin/gnome-keyring-daemon --start --components=secrets
 # Toshy の user service が sway セッション情報を読めるようにする
 exec_always --no-startup-id systemctl --user import-environment XDG_SESSION_TYPE XDG_CURRENT_DESKTOP WAYLAND_DISPLAY SWAYSOCK
 exec_always --no-startup-id dbus-update-activation-environment --systemd XDG_SESSION_TYPE XDG_CURRENT_DESKTOP WAYLAND_DISPLAY SWAYSOCK
+exec --no-startup-id systemctl --user start sway-session.target
 exec_always --no-startup-id systemctl --user restart toshy-wlroots-dbus.service toshy-config.service
 
 # スクリーンロック（手動）
