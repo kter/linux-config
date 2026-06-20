@@ -182,14 +182,14 @@ exec --no-startup-id systemctl --user start sway-session.target
 exec_always --no-startup-id systemctl --user restart toshy-wlroots-dbus.service toshy-config.service
 
 # スクリーンロック（手動）
-bindsym $mod+l exec swaylock -f -c 000000
+bindsym $mod+l exec swaylock -f -p -c 000000
 
 # スクリーンロック・画面オフ（自動）
 exec swayidle -w \
-    timeout 900 'swaylock -f -c 000000' \
+    timeout 900 'swaylock -f -p -c 000000' \
     timeout 1200 'swaymsg "output * dpms off"' \
     resume 'swaymsg "output * dpms on"' \
-    before-sleep 'swaylock -f -c 000000'
+    before-sleep 'swaylock -f -p -c 000000'
 
 # mozc
 exec fcitx5 -d

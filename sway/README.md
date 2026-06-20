@@ -144,33 +144,52 @@ font pango:Noto Sans CJK JP 10
 
 Fedora では `google-noto-sans-cjk-fonts` に含まれる `Noto Sans CJK JP` を利用できる。
 
-### 6. スクリーンロックのパスワード認証（`/etc/pam.d/swaylock`）
+### 6. スクリーンロックの指紋＋パスワード認証（`swaylock-fprintd`）
 
-**症状**: ロック画面でパスワードを入力して Enter しても「Verifying」のまま固まる。指紋認証は通過できる。
+**やりたいこと**: ロック画面を指紋センサーで解除する（パスワード入力も併用したい）。
 
-**真因**: `/etc/pam.d/swaylock` がデフォルトで `auth include login` → `system-auth` を経由するが、そのスタックで `pam_fprintd`（指紋）が `pam_unix`（パスワード）より**先に実行**される。パスワードを打っても PAM がまず「指をスワイプせよ」と待機してブロックするため、swaylock が固まる。
+**素の swaylock では不可能だった理由**: upstream の swaylock は「キーボードでパスワードを受け取ってから一度だけ PAM 認証を呼ぶ」設計で、ロック画面の待機中に裏で指紋センサーを走査するスレッドが存在しない。PAM スタックに `pam_fprintd` を入れても、パスワード入力と並走できず（先に「指をスワイプせよ」で固まる）破綻する。このため当初はやむなく `/etc/pam.d/swaylock` を `password-auth` のみ（指紋なし）に固定していた。
 
-**修正**: `/etc/pam.d/swaylock` を `password-auth` 参照のみに書き換える。指紋は swaylock では使わず、パスワードのみでアンロックする（sudo・ログイン等での指紋認証は従来どおり有効）。
+**採った解決策**: 指紋走査スレッドを並走させるフォーク [`SL-RU/swaylock-fprintd`](https://github.com/SL-RU/swaylock-fprintd) をソースからビルドし、`/usr/local/bin/swaylock` に設置（PATH 優先で素の `/usr/bin/swaylock` を上書きせず差し替え）。`-p`/`--fingerprint` フラグで指紋走査を有効化する。
 
+- **指紋は PAM を通らない**: フォークは fprintd へ直接 DBus で接続し（`net.reactivated.Fprint` の `VerifyStart` 等）、メインループと並走して指を待つ。よって `/etc/pam.d/swaylock` は **`password-auth` のまま（指紋なし）が正解** ── ここに `pam_fprintd` を足すと逆に二重プロンプトで干渉する。パスワードは従来どおり PAM、指紋は DBus、両者が並走する。
+- sway 設定の `swaylock` 呼び出し 3 箇所（`$mod+l` / swayidle の `timeout` と `before-sleep`）に `-p` を付与済み。
+
+#### ビルド手順（再現・再ビルド用）
+
+```sh
+# 依存（不足分のみ）
+sudo dnf install -y wayland-protocols-devel scdoc
+# 既存: meson ninja-build gcc pkgconf-pkg-config wayland-devel libxkbcommon-devel \
+#       cairo-devel gdk-pixbuf2-devel pam-devel glib2-devel
+
+git clone --depth 1 https://github.com/SL-RU/swaylock-fprintd ~/workspace/swaylock-fprintd
+cd ~/workspace/swaylock-fprintd
+
+# Fedora は fprintd の DBus introspection XML を同梱しないため、稼働中の
+# デーモンから採取して fingerprint/dbus-xml/ に置き、meson.build をそこへ向ける。
+mkdir -p fingerprint/dbus-xml
+gdbus introspect --system --dest net.reactivated.Fprint \
+  --object-path /net/reactivated/Fprint/Manager --xml  # → Manager 定義を抽出
+gdbus introspect --system --dest net.reactivated.Fprint \
+  --object-path /net/reactivated/Fprint/Device/0 --xml # → Device 定義を抽出
+#   それぞれ <interface name="net.reactivated.Fprint.*"> ノードだけを
+#   fingerprint/dbus-xml/net.reactivated.Fprint.{Manager,Device}.xml として保存し、
+#   fingerprint/meson.build の files(...) を 'dbus-xml/...' に書き換える。
+
+meson setup build --prefix=/usr/local -Dpam=enabled -Dgdk-pixbuf=enabled -Dman-pages=enabled
+ninja -C build
+sudo ninja -C build install   # → /usr/local/bin/swaylock
 ```
-sudo cp /etc/pam.d/swaylock /etc/pam.d/swaylock.bak
 
-sudo tee /etc/pam.d/swaylock << 'EOF'
-#
-# PAM configuration for swaylock — password only (no fingerprint).
-#
-auth       include    password-auth
-account    include    password-auth
-session    include    password-auth
-EOF
-```
+> **注意**: フォークは Fedora のパッケージ更新では追従しない。`swaylock` rpm を更新しても
+> `/usr/local/bin/swaylock` が PATH 優先で使われ続ける。upstream を取り込みたいときは
+> `~/workspace/swaylock-fprintd` で `git pull` して再ビルドすること。元に戻すなら
+> `sudo rm /usr/local/bin/swaylock`。
 
-これでパスワード入力 → 即時アンロックされる。
-
-> **備考**: `pam_fprintd_grosshack` でパスワード＋指紋の並行認証を試みたが、
-> 認証経路に 900 行超の第三者コードを導入するリスクから採用を見送った。
-
-> **注意**: このファイルは `swaylock` rpm が所有するが `authselect` の管理対象外なので編集は永続する。ただし `swaylock` パッケージ更新時に `/etc/pam.d/swaylock.rpmnew` が生成される場合があるため、更新後は `diff /etc/pam.d/swaylock /etc/pam.d/swaylock.rpmnew` で確認し、必要なら再適用すること。
+> **`/etc/pam.d/swaylock`（変更不要・現状維持）**: `password-auth` 参照のみ。指紋はフォークが
+> DBus で処理するため PAM 側には入れない。sudo・ログイン等での指紋認証は `system-auth` 経由で
+> 従来どおり有効。
 
 ---
 
