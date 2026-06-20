@@ -1,7 +1,7 @@
 set $mod Mod4
 set $alt Mod1
 set $term foot
-set $menu wofi --show run
+set $menu wofi --show drun
 font pango:Noto Sans CJK JP 10
 
 # Displays
@@ -186,8 +186,8 @@ bindsym $mod+l exec swaylock -f -c 000000
 
 # スクリーンロック・画面オフ（自動）
 exec swayidle -w \
-    timeout 300 'swaylock -f -c 000000' \
-    timeout 600 'swaymsg "output * dpms off"' \
+    timeout 900 'swaylock -f -c 000000' \
+    timeout 1200 'swaymsg "output * dpms off"' \
     resume 'swaymsg "output * dpms on"' \
     before-sleep 'swaylock -f -c 000000'
 
