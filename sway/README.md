@@ -191,6 +191,41 @@ sudo ninja -C build install   # → /usr/local/bin/swaylock
 > DBus で処理するため PAM 側には入れない。sudo・ログイン等での指紋認証は `system-auth` 経由で
 > 従来どおり有効。
 
+#### サスペンド復帰後に指紋が効かなくなる問題（`fprintd-resume.service`）
+
+**症状**: 普段は指紋解除できるのに、いつの間にか反応しなくなる。swaylock のデバッグログに
+`net.reactivated.Fprint.Error.AlreadyInUse: Device was already claimed` が並ぶ。
+
+**真因**: `before-sleep` の swaylock が指紋デバイスを claim したままサスペンドに入り、復帰時に
+USB リーダーが再列挙される（`/net/reactivated/Fprint/Device/0` → `…/1`）と、古い claim が
+亡霊として残る。以降どの swaylock もデバイスを掴めず無反応になる。`sudo systemctl restart
+fprintd.service` で一掃すれば直るが、サスペンドのたびに再発しうる。
+
+**恒久対策**: 復帰時に fprintd を自動再起動する oneshot サービスを入れる。swaylock-fprintd は
+300ms ごとに claim を再試行するため、フックが fprintd を綺麗にすれば自動で掴み直して走査を再開
+する（自己修復）。`/etc/systemd/system/` 配下なので `~/.config` git 管理外。
+
+```ini
+# /etc/systemd/system/fprintd-resume.service
+[Unit]
+Description=Restart fprintd after resume to clear stale fingerprint device claims
+After=suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/systemctl restart fprintd.service
+
+[Install]
+WantedBy=suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
+```
+
+```sh
+sudo systemctl daemon-reload
+sudo systemctl enable fprintd-resume.service   # 各 *.target.wants/ に symlink が張られる
+```
+
+> 即時復旧（再発時の手当て）: `sudo systemctl restart fprintd.service`
+
 ---
 
 ## コピペ
