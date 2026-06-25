@@ -2,9 +2,6 @@ local map = vim.keymap.set
 
 map("t", "<Esc>", "<C-\\><C-n>", { desc = "Exit terminal mode" })
 
--- foot terminal sends Ctrl+[ as <D-[> (Super+[) due to toshy Ctrl→Meta swap
-map("i", "<D-[>", "<Esc>", { desc = "Exit insert mode (Ctrl+[ via toshy)" })
-
 map("n", "<C-h>", "<C-w>h", { desc = "Move focus left" })
 map("n", "<C-j>", "<C-w>j", { desc = "Move focus down" })
 map("n", "<C-k>", "<C-w>k", { desc = "Move focus up" })

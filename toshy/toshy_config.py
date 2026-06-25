@@ -2439,6 +2439,8 @@ keymap("User Terminal CapsLock-as-Ctrl", {
     K("RCmd-w"): K("C-w"),    # 直前単語削除
     K("RCmd-k"): K("C-k"),    # 行末まで削除
     K("RCmd-r"): K("C-r"),    # 履歴検索
+    K("RCmd-v"): K("C-v"),    # Ctrl+V → vim 矩形選択 / リテラル入力 (Shift-RCmd-v はペースト)
+    K("RCmd-LEFT_BRACE"): K("C-LEFT_BRACE"),  # Ctrl+[ → ESC (vim の挿入モード離脱等)
 }, when = matchProps(clas=term_regex))
 
 # C. IME切り替え：全アプリ共通
