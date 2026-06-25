@@ -24,6 +24,20 @@ vim.api.nvim_create_autocmd("FileType", {
   end,
 })
 
+-- Continue markdown bullet lists onto the next line when pressing <Enter>/o
+vim.api.nvim_create_autocmd("FileType", {
+  pattern = "markdown",
+  callback = function()
+    vim.opt_local.comments = "b:- [ ],b:- [x],b:-,b:*,b:+,b:>"
+    vim.opt_local.formatoptions:append("r") -- continue list in insert mode (<Enter>)
+    vim.opt_local.formatoptions:append("o") -- continue list with o/O in normal mode
+    -- The runtime markdown ftplugin forces these to 4; restore our 2-space indent.
+    vim.opt_local.tabstop = 2
+    vim.opt_local.shiftwidth = 2
+    vim.opt_local.softtabstop = 2
+  end,
+})
+
 vim.api.nvim_create_autocmd("BufEnter", {
   group = group,
   callback = function(event)
