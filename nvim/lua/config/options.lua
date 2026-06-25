@@ -19,6 +19,9 @@ vim.opt.termguicolors = true
 
 vim.opt.tags = "./tags;,tags;"
 
+-- Ignore project .editorconfig so the indent settings below always apply
+vim.g.editorconfig = false
+
 vim.opt.tabstop = 2
 vim.opt.shiftwidth = 2
 vim.opt.expandtab = true
