@@ -213,6 +213,10 @@ After=suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate
 
 [Service]
 Type=oneshot
+# USB リーダーの再列挙が落ち着く前に fprintd を再起動すると、走行中の swaylock の
+# リトライが不安定な窓で transient な claim を掴んで死に、二度と掴み直せなくなる
+# （下記「再発」参照）。少し待ってから claim を掃除する。
+ExecStartPre=/usr/bin/sleep 3
 ExecStart=/usr/bin/systemctl restart fprintd.service
 
 [Install]
@@ -225,6 +229,24 @@ sudo systemctl enable fprintd-resume.service   # 各 *.target.wants/ に symlink
 ```
 
 > 即時復旧（再発時の手当て）: `sudo systemctl restart fprintd.service`
+
+**再発（別症状・`ExecStartPre=sleep 3` 追加の経緯）**: 上記サービス導入後、`AlreadyInUse` は
+消えたが、別の形で指紋が無反応になる事例が出た。復帰直後の `journalctl -b` に次が並ぶ:
+
+```
+fprintd[…]: Authorization denied to :1.xxxx to call method 'Release'
+            for device 'Synaptics Sensors': Device was not claimed before use
+fprintd.service: Deactivated successfully   # 誰も claim しないまま idle 落ち
+```
+
+真因はタイミング。`fprintd-resume.service` は `After=suspend.target` でほぼ即時に発火するが、
+USB リーダーの再列挙が終わる前に fprintd を再起動すると、before-sleep から生き残った swaylock の
+300ms リトライが不安定な窓に当たり、一瞬掴んだ claim が死んで掴み直せない（死んだ D-Bus
+プロキシを握ったまま終了時に Release を試みて弾かれる＝上のログ）。`ExecStartPre=/usr/bin/sleep 3`
+で再列挙を待ってから fprintd を掃除すると、swaylock のリトライが安定した相手を掴める。
+
+> まだ再発するなら `sleep` の秒数を増やす。判断は復帰直後に
+> `journalctl -b | grep -iE 'fprintd|Release|claimed'` を見て、claim が安定したか確認する。
 
 ---
 
