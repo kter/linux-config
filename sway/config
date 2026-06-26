@@ -159,6 +159,11 @@ input type:touchpad {
   tap enabled
 }
 
+# TrackPoint の感度を鈍く（pointer_accel: -1.0〜1.0、負ほど低速）
+input "2:10:TPPS/2_Elan_TrackPoint" {
+  pointer_accel -0.3
+}
+
 # Scratch Pad
 bindsym $mod+Shift+Delete move scratchpad
 bindsym $mod+Delete scratchpad show
