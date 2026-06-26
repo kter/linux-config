@@ -201,9 +201,10 @@ USB リーダーが再列挙される（`/net/reactivated/Fprint/Device/0` → `
 亡霊として残る。以降どの swaylock もデバイスを掴めず無反応になる。`sudo systemctl restart
 fprintd.service` で一掃すれば直るが、サスペンドのたびに再発しうる。
 
-**恒久対策**: 復帰時に fprintd を自動再起動する oneshot サービスを入れる。swaylock-fprintd は
-300ms ごとに claim を再試行するため、フックが fprintd を綺麗にすれば自動で掴み直して走査を再開
-する（自己修復）。`/etc/systemd/system/` 配下なので `~/.config` git 管理外。
+**対策は二段構え**で、両方そろって初めて根治する。
+
+**① 復帰時に fprintd を再起動する oneshot サービス**（旧 claim の掃除）。`/etc/systemd/system/`
+配下なので `~/.config` git 管理外。
 
 ```ini
 # /etc/systemd/system/fprintd-resume.service
@@ -213,9 +214,7 @@ After=suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate
 
 [Service]
 Type=oneshot
-# USB リーダーの再列挙が落ち着く前に fprintd を再起動すると、走行中の swaylock の
-# リトライが不安定な窓で transient な claim を掴んで死に、二度と掴み直せなくなる
-# （下記「再発」参照）。少し待ってから claim を掃除する。
+# USB リーダーの再列挙が落ち着く前に fprintd を掴むと不安定なので少し待つ（保険）。
 ExecStartPre=/usr/bin/sleep 3
 ExecStart=/usr/bin/systemctl restart fprintd.service
 
@@ -230,8 +229,9 @@ sudo systemctl enable fprintd-resume.service   # 各 *.target.wants/ に symlink
 
 > 即時復旧（再発時の手当て）: `sudo systemctl restart fprintd.service`
 
-**再発（別症状・`ExecStartPre=sleep 3` 追加の経緯）**: 上記サービス導入後、`AlreadyInUse` は
-消えたが、別の形で指紋が無反応になる事例が出た。復帰直後の `journalctl -b` に次が並ぶ:
+**② swaylock-fprintd 本体の再 claim 修正**（これが本命）。①だけでは不十分だった。
+
+サービス導入後も別の形で無反応になる事例が出て、復帰直後の `journalctl -b` に次が並んだ:
 
 ```
 fprintd[…]: Authorization denied to :1.xxxx to call method 'Release'
@@ -239,14 +239,20 @@ fprintd[…]: Authorization denied to :1.xxxx to call method 'Release'
 fprintd.service: Deactivated successfully   # 誰も claim しないまま idle 落ち
 ```
 
-真因はタイミング。`fprintd-resume.service` は `After=suspend.target` でほぼ即時に発火するが、
-USB リーダーの再列挙が終わる前に fprintd を再起動すると、before-sleep から生き残った swaylock の
-300ms リトライが不安定な窓に当たり、一瞬掴んだ claim が死んで掴み直せない（死んだ D-Bus
-プロキシを握ったまま終了時に Release を試みて弾かれる＝上のログ）。`ExecStartPre=/usr/bin/sleep 3`
-で再列挙を待ってから fprintd を掃除すると、swaylock のリトライが安定した相手を掴める。
+**真因はフォーク本体のバグ**。`fingerprint/fingerprint.c` の `fingerprint_verify()` は、claim の
+再試行を `state->device == NULL` のときしか行わない。一度 claim に成功して `device` が入ると二度と
+NULL に戻らないため、その後 fprintd が死んでも（①の復帰時 restart を含む）死んだ proxy を握った
+まま再 claim せず、走査が永久に止まる。終了時に握ってもいない Release を投げて弾かれるのが上のログ。
+「サスペンド前に claim 成功した回だけ壊れる」ので間欠的に見えていた。
 
-> まだ再発するなら `sleep` の秒数を増やす。判断は復帰直後に
-> `journalctl -b | grep -iE 'fprintd|Release|claimed'` を見て、claim が安定したか確認する。
+**修正**: fprintd の bus name (`net.reactivated.Fprint`) を `g_bus_watch_name` で監視し、claim 保持中に
+name が消えたら `state->device` を NULL に落とす（Release は呼ばない＝daemon は既に居ない）。これで
+既存のリトライループが自動で再 open・再 claim する。①が復帰のたびに name を消す→再出現させるので、
+両者が噛み合って確実に掴み直す。`~/workspace/swaylock-fprintd` で改修・再ビルド・`sudo ninja install`
+済み。
+
+> 検証: 復帰後 `journalctl -b | grep -iE 'fprintd|Release|claimed'` に
+> `vanished while claimed; dropping stale device` が出て、その後 claim が成立していれば成功。
 
 ---
 
