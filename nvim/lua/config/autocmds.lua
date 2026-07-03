@@ -55,6 +55,16 @@ vim.api.nvim_create_autocmd("BufEnter", {
   end,
 })
 
+vim.api.nvim_create_autocmd("TermOpen", {
+  group = vim.api.nvim_create_augroup("user-claudecode-esc", { clear = true }),
+  callback = function(args)
+    local bufname = vim.api.nvim_buf_get_name(args.buf):lower()
+    if not bufname:find("claude") then return end
+    vim.keymap.set("t", "<Esc>", "<Esc>", { buffer = args.buf, desc = "Pass Esc to Claude Code" })
+    vim.keymap.set("t", "<C-q>", [[<C-\><C-n>]], { buffer = args.buf, desc = "Exit terminal mode" })
+  end,
+})
+
 vim.api.nvim_create_autocmd("TextYankPost", {
   group = vim.api.nvim_create_augroup("user-claudecode-yank-strip", { clear = true }),
   callback = function()
