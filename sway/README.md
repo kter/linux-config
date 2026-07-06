@@ -157,26 +157,14 @@ Fedora では `google-noto-sans-cjk-fonts` に含まれる `Noto Sans CJK JP` �
 
 #### ビルド手順（再現・再ビルド用）
 
+自分のフォーク [`kter/swaylock-fprintd`](https://github.com/kter/swaylock-fprintd) の
+`fprintd` ブランチに全修正がコミット済み（後述②の re-claim 修正、Fedora 向け D-Bus
+introspection XML の vendor 化）。**新規マシンの完全な手順はフォークの
+`contrib/README.md` を参照**（依存パッケージ・PAM/systemd 設定ファイル同梱・指紋再登録まで）。要点:
+
 ```sh
-# 依存（不足分のみ）
-sudo dnf install -y wayland-protocols-devel scdoc
-# 既存: meson ninja-build gcc pkgconf-pkg-config wayland-devel libxkbcommon-devel \
-#       cairo-devel gdk-pixbuf2-devel pam-devel glib2-devel
-
-git clone --depth 1 https://github.com/SL-RU/swaylock-fprintd ~/workspace/swaylock-fprintd
+git clone -b fprintd git@github.com:kter/swaylock-fprintd.git ~/workspace/swaylock-fprintd
 cd ~/workspace/swaylock-fprintd
-
-# Fedora は fprintd の DBus introspection XML を同梱しないため、稼働中の
-# デーモンから採取して fingerprint/dbus-xml/ に置き、meson.build をそこへ向ける。
-mkdir -p fingerprint/dbus-xml
-gdbus introspect --system --dest net.reactivated.Fprint \
-  --object-path /net/reactivated/Fprint/Manager --xml  # → Manager 定義を抽出
-gdbus introspect --system --dest net.reactivated.Fprint \
-  --object-path /net/reactivated/Fprint/Device/0 --xml # → Device 定義を抽出
-#   それぞれ <interface name="net.reactivated.Fprint.*"> ノードだけを
-#   fingerprint/dbus-xml/net.reactivated.Fprint.{Manager,Device}.xml として保存し、
-#   fingerprint/meson.build の files(...) を 'dbus-xml/...' に書き換える。
-
 meson setup build --prefix=/usr/local -Dpam=enabled -Dgdk-pixbuf=enabled -Dman-pages=enabled
 ninja -C build
 sudo ninja -C build install   # → /usr/local/bin/swaylock
@@ -184,7 +172,7 @@ sudo ninja -C build install   # → /usr/local/bin/swaylock
 
 > **注意**: フォークは Fedora のパッケージ更新では追従しない。`swaylock` rpm を更新しても
 > `/usr/local/bin/swaylock` が PATH 優先で使われ続ける。upstream を取り込みたいときは
-> `~/workspace/swaylock-fprintd` で `git pull` して再ビルドすること。元に戻すなら
+> `upstream` リモート（SL-RU/swaylock-fprintd）から merge して再ビルドすること。元に戻すなら
 > `sudo rm /usr/local/bin/swaylock`。
 
 > **`/etc/pam.d/swaylock`（変更不要・現状維持）**: `password-auth` 参照のみ。指紋はフォークが
@@ -204,7 +192,8 @@ fprintd.service` で一掃すれば直るが、サスペンドのたびに再発
 **対策は二段構え**で、両方そろって初めて根治する。
 
 **① 復帰時に fprintd を再起動する oneshot サービス**（旧 claim の掃除）。`/etc/systemd/system/`
-配下なので `~/.config` git 管理外。
+配下なので `~/.config` git 管理外だが、フォークの `contrib/fprintd-resume.service` に
+コピーを同梱済み（`contrib/swaylock.pam` も同様）。
 
 ```ini
 # /etc/systemd/system/fprintd-resume.service
