@@ -189,12 +189,19 @@ exec_always --no-startup-id systemctl --user restart toshy-wlroots-dbus.service 
 # スクリーンロック（手動）
 bindsym $mod+l exec swaylock -f -p -c 000000
 
+# 画面が真っ暗のまま戻らなくなったときの脱出口。--locked が無いと
+# ロック中は実行されない（＝一番効いてほしい場面で無反応になる）ので必須。
+bindsym --locked $mod+Shift+p exec swaymsg "output * dpms on"
+
 # スクリーンロック・画面オフ（自動）
+# after-resume が無いと、dpms off のままサスペンドした場合に復帰後も
+# sway が「出力は off」と信じ続け、蓋を開け閉めしても画面が戻らない。
 exec swayidle -w \
     timeout 900 'swaylock -f -p -c 000000' \
     timeout 1200 'swaymsg "output * dpms off"' \
     resume 'swaymsg "output * dpms on"' \
-    before-sleep 'swaylock -f -p -c 000000'
+    before-sleep 'swaylock -f -p -c 000000' \
+    after-resume 'swaymsg "output * dpms on"'
 
 # mozc
 exec fcitx5 -d
