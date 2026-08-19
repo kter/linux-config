@@ -1,5 +1,9 @@
 *
 !/.gitignore
+!/fish/
+!/fish/config.fish
+!/fish/conf.d/
+!/fish/conf.d/**
 !/nvim/
 !/nvim/**
 /nvim/.claude/
