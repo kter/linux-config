@@ -1,6 +1,9 @@
 local map = vim.keymap.set
 
 map("t", "<Esc>", "<C-\\><C-n>", { desc = "Exit terminal mode" })
+-- foot and nvim negotiate the kitty keyboard protocol, so <C-[> arrives as a
+-- key distinct from <Esc> and needs a mapping of its own.
+map("t", "<C-[>", "<C-\\><C-n>", { desc = "Exit terminal mode" })
 
 map("n", "<C-h>", "<C-w>h", { desc = "Move focus left" })
 map("n", "<C-j>", "<C-w>j", { desc = "Move focus down" })
