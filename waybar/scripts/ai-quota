@@ -1,0 +1,373 @@
+#!/usr/bin/env python3
+"""Emit Claude Code or Codex quota information for Waybar."""
+
+import argparse
+import datetime as dt
+import html
+import json
+import os
+import sys
+import threading
+import time
+import urllib.error
+import urllib.request
+from pathlib import Path
+from typing import Any
+
+
+CACHE_MAX_AGE = 30 * 60
+CODEX_PRIMARY_WINDOW = 5 * 60 * 60
+
+
+class QuotaError(Exception):
+    """An expected failure while obtaining quota information."""
+
+
+def home_path(*parts: str) -> Path:
+    return Path(os.path.expanduser("~")).joinpath(*parts)
+
+
+def cache_path(target: str) -> Path:
+    cache_home = os.environ.get("XDG_CACHE_HOME")
+    base = Path(cache_home) if cache_home else home_path(".cache")
+    return base / "waybar-quota" / f"{target}.json"
+
+
+def read_json(path: Path) -> dict[str, Any]:
+    try:
+        with path.open(encoding="utf-8") as source:
+            data = json.load(source)
+    except FileNotFoundError as error:
+        raise QuotaError(f"ファイル未検出: {path}") from error
+    except (OSError, json.JSONDecodeError) as error:
+        raise QuotaError(f"ファイルを読めません: {path.name}") from error
+    if not isinstance(data, dict):
+        raise QuotaError(f"不正な JSON: {path.name}")
+    return data
+
+
+def parse_iso8601(value: Any) -> float:
+    if not isinstance(value, str):
+        raise QuotaError("リセット時刻が不正です")
+    try:
+        parsed = dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            raise ValueError("timezone missing")
+        return parsed.timestamp()
+    except ValueError as error:
+        raise QuotaError("リセット時刻が不正です") from error
+
+
+def quota_value(item: Any, reset_is_iso: bool) -> dict[str, float]:
+    if not isinstance(item, dict):
+        raise QuotaError("クォータ情報が不正です")
+    try:
+        used = float(item["utilization"] if reset_is_iso else item["used_percent"])
+        reset = parse_iso8601(item["resets_at"]) if reset_is_iso else float(item["resets_at"])
+    except (KeyError, TypeError, ValueError) as error:
+        raise QuotaError("クォータ情報が不正です") from error
+    return {"used": used, "resets_at": reset}
+
+
+def request_claude_usage(token: str) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    error: list[BaseException] = []
+
+    def fetch() -> None:
+        try:
+            request = urllib.request.Request(
+                "https://api.anthropic.com/api/oauth/usage",
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "anthropic-beta": "oauth-2025-04-20",
+                },
+            )
+            # urlopen honors https_proxy; its socket timeout is 3 seconds.
+            with urllib.request.urlopen(request, timeout=3) as response:
+                body = response.read()
+                status = response.status
+            if status != 200:
+                raise QuotaError(f"HTTP ステータス: {status}")
+            parsed = json.loads(body)
+            if not isinstance(parsed, dict):
+                raise QuotaError("API レスポンスが不正です")
+            result["usage"] = parsed
+        except urllib.error.HTTPError as caught:
+            error.append(QuotaError(f"HTTP ステータス: {caught.code}"))
+        except BaseException as caught:  # Report every network failure uniformly.
+            error.append(caught)
+
+    worker = threading.Thread(target=fetch, daemon=True)
+    worker.start()
+    worker.join(8)
+    if worker.is_alive():
+        raise QuotaError("タイムアウト（8 秒）")
+    if error:
+        caught = error[0]
+        if isinstance(caught, QuotaError):
+            raise caught
+        if isinstance(caught, TimeoutError):
+            raise QuotaError("タイムアウト") from caught
+        raise QuotaError("ネットワーク取得失敗") from caught
+    return result["usage"]
+
+
+def fetch_claude() -> dict[str, Any]:
+    credentials = read_json(home_path(".claude", ".credentials.json"))
+    oauth = credentials.get("claudeAiOauth")
+    if not isinstance(oauth, dict) or not isinstance(oauth.get("accessToken"), str):
+        raise QuotaError("Claude の accessToken が見つかりません")
+    usage = request_claude_usage(oauth["accessToken"])
+    return {
+        "target": "claude",
+        "fetched_at": time.time(),
+        "five": quota_value(usage.get("five_hour"), reset_is_iso=True),
+        "seven": quota_value(usage.get("seven_day"), reset_is_iso=True),
+    }
+
+
+def rollout_files(directory: Path):
+    """Yield rollout files using scandir, avoiding a full file-content scan."""
+    try:
+        entries = sorted(os.scandir(directory), key=lambda entry: entry.name, reverse=True)
+    except OSError:
+        return
+    for entry in entries:
+        try:
+            if entry.is_dir(follow_symlinks=False):
+                yield from rollout_files(Path(entry.path))
+            elif entry.name.startswith("rollout-") and entry.name.endswith(".jsonl"):
+                yield Path(entry.path)
+        except OSError:
+            continue
+
+
+def newest_rollouts(limit: int = 5) -> list[Path]:
+    sessions = home_path(".codex", "sessions")
+    if not sessions.is_dir():
+        raise QuotaError(f"ファイル未検出: {sessions}")
+    candidates: list[tuple[float, Path]] = []
+    for path in rollout_files(sessions):
+        try:
+            mtime = path.stat().st_mtime
+        except OSError:
+            continue
+        candidates.append((mtime, path))
+    candidates.sort(key=lambda candidate: candidate[0], reverse=True)
+    if not candidates:
+        raise QuotaError("Codex の rollout ファイルが見つかりません")
+    return [path for _, path in candidates[:limit]]
+
+
+def last_rate_limits(path: Path) -> dict[str, Any]:
+    latest: dict[str, Any] | None = None
+
+    def find_rate_limits(value: Any) -> dict[str, Any] | None:
+        """Handle both direct JSONL events and events wrapped in a payload."""
+        found: dict[str, Any] | None = None
+        if isinstance(value, dict):
+            candidate = value.get("rate_limits")
+            if isinstance(candidate, dict):
+                found = candidate
+            for child in value.values():
+                nested = find_rate_limits(child)
+                if nested is not None:
+                    found = nested
+        elif isinstance(value, list):
+            for child in value:
+                nested = find_rate_limits(child)
+                if nested is not None:
+                    found = nested
+        return found
+
+    try:
+        with path.open(encoding="utf-8", errors="replace") as source:
+            for line in source:
+                if '"rate_limits"' not in line:
+                    continue
+                try:
+                    parsed = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                candidate = find_rate_limits(parsed)
+                if isinstance(candidate, dict):
+                    latest = candidate
+    except OSError as error:
+        raise QuotaError("Codex の rollout ファイルを読めません") from error
+    if latest is None:
+        raise QuotaError("rate_limits を含む行が見つかりません")
+    return latest
+
+
+def fetch_codex() -> dict[str, Any]:
+    last_error: QuotaError | None = None
+    for path in newest_rollouts():
+        try:
+            limits = last_rate_limits(path)
+            break
+        except QuotaError as error:
+            last_error = error
+    else:
+        raise last_error or QuotaError("rate_limits を含む行が見つかりません")
+    try:
+        source_mtime = path.stat().st_mtime
+    except OSError as error:
+        raise QuotaError("Codex の rollout ファイルを確認できません") from error
+    primary = quota_value(limits.get("primary"), reset_is_iso=False)
+    secondary = quota_value(limits.get("secondary"), reset_is_iso=False)
+    return {
+        "target": "codex",
+        "fetched_at": time.time(),
+        "source_mtime": source_mtime,
+        "five": primary,
+        "seven": secondary,
+    }
+
+
+def save_cache(target: str, data: dict[str, Any]) -> None:
+    path = cache_path(target)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_suffix(".tmp")
+        with temporary.open("w", encoding="utf-8") as destination:
+            json.dump(data, destination, ensure_ascii=False)
+        temporary.replace(path)
+    except OSError:
+        pass
+
+
+def load_fresh_cache(target: str) -> tuple[dict[str, Any] | None, float | None]:
+    try:
+        cached = read_json(cache_path(target))
+        age = time.time() - float(cached["fetched_at"])
+        if age <= CACHE_MAX_AGE:
+            return cached, max(0.0, age)
+    except (QuotaError, KeyError, TypeError, ValueError):
+        pass
+    return None, None
+
+
+def usage_text(value: Any) -> str:
+    try:
+        return f"{int(float(value))}%"
+    except (TypeError, ValueError):
+        return "--%"
+
+
+def elapsed_text(seconds: float) -> str:
+    seconds = max(0, int(seconds))
+    if seconds < 60:
+        return "たった今" if seconds < 10 else f"{seconds} 秒前"
+    minutes = seconds // 60
+    if minutes < 60:
+        return f"{minutes} 分前"
+    hours, minutes = divmod(minutes, 60)
+    return f"{hours} 時間" + (f" {minutes} 分前" if minutes else "前")
+
+
+def remaining_text(reset_at: float) -> str:
+    remaining = reset_at - time.time()
+    if remaining <= 0:
+        return "リセット済み"
+    minutes = max(1, int(remaining // 60))
+    if minutes < 60:
+        return f"あと {minutes} 分"
+    hours, minutes = divmod(minutes, 60)
+    return f"あと {hours} 時間" + (f" {minutes} 分" if minutes else "")
+
+
+def local_reset_text(reset_at: float) -> str:
+    local = dt.datetime.fromtimestamp(reset_at).astimezone()
+    today = dt.datetime.now().astimezone().date()
+    if local.date() == today:
+        return local.strftime("%H:%M")
+    if local.date() == today + dt.timedelta(days=1):
+        return "明日 " + local.strftime("%H:%M")
+    return local.strftime("%m/%d %H:%M")
+
+
+def quota_line(label: str, quota: dict[str, Any], unknown: bool = False) -> str:
+    reset_at = float(quota["resets_at"])
+    used = "--%" if unknown else usage_text(quota.get("used"))
+    if unknown:
+        return f"{label}:  {used}  (データが5時間以上前 / {local_reset_text(reset_at)})"
+    return f"{label}:  {used}  ({remaining_text(reset_at)} / {local_reset_text(reset_at)})"
+
+
+def output_for(target: str, data: dict[str, Any], cache_age: float | None = None) -> dict[str, str]:
+    five = data["five"]
+    seven = data["seven"]
+    source_age = time.time() - float(data.get("source_mtime", time.time()))
+    primary_unknown = target == "codex" and (
+        source_age > CODEX_PRIMARY_WINDOW or float(five["resets_at"]) < time.time()
+    )
+    values = [float(seven["used"])]
+    if not primary_unknown:
+        values.append(float(five["used"]))
+    highest = max(values)
+    state = "critical" if highest >= 90 else "warning" if highest >= 70 else ""
+    prefix = "CC" if target == "claude" else "CX"
+    five_text = "--%" if primary_unknown else usage_text(five.get("used"))
+    tooltip = ["Claude Code" if target == "claude" else "Codex"]
+    tooltip.append(quota_line("5h", five, primary_unknown))
+    tooltip.append(quota_line("7d", seven))
+    if target == "codex":
+        tooltip.append(f"データ取得: {elapsed_text(source_age)}")
+    if cache_age is not None:
+        tooltip.append(f"キャッシュ: {elapsed_text(cache_age)}の値")
+    return {"text": f"{prefix} {five_text}/{usage_text(seven.get('used'))}", "tooltip": "\n".join(tooltip), "class": state}
+
+
+def failure_output(target: str, reason: str) -> dict[str, str]:
+    prefix = "CC" if target == "claude" else "CX"
+    title = "Claude Code" if target == "claude" else "Codex"
+    return {"text": f"{prefix} --%/--%", "tooltip": f"{title}\n取得失敗: {html.escape(reason)}", "class": "critical"}
+
+
+def parse_target() -> str:
+    class TargetParser(argparse.ArgumentParser):
+        def error(self, message: str) -> None:
+            raise ValueError(message)
+
+    parser = TargetParser(add_help=False)
+    parser.add_argument("--target", choices=("claude", "codex"), required=True)
+    return parser.parse_args().target
+
+
+def fallback_target() -> str:
+    """Best-effort target selection for the top-level Waybar safety net."""
+    try:
+        arguments = sys.argv[1:]
+        target_index = arguments.index("--target")
+        if arguments[target_index + 1] == "codex":
+            return "codex"
+    except BaseException:
+        pass
+    return "claude"
+
+
+def main() -> None:
+    target = parse_target()
+    try:
+        data = fetch_claude() if target == "claude" else fetch_codex()
+        save_cache(target, data)
+        output = output_for(target, data)
+    except Exception as error:
+        cached, age = load_fresh_cache(target)
+        if cached is not None:
+            try:
+                output = output_for(target, cached, age)
+            except Exception as cache_error:
+                output = failure_output(target, f"キャッシュの表示に失敗: {type(cache_error).__name__}")
+        else:
+            output = failure_output(target, str(error))
+    print(json.dumps(output, ensure_ascii=False, separators=(",", ":")))
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except BaseException as error:
+        # A custom module must never break Waybar, including argument or coding errors.
+        target = fallback_target()
+        print(json.dumps(failure_output(target, f"予期しないエラー: {type(error).__name__}"), ensure_ascii=False, separators=(",", ":")))

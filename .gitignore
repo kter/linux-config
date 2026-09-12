@@ -11,6 +11,7 @@
 !/sway/**
 !/waybar/
 !/waybar/**
+/waybar/scripts/__pycache__/
 !/toshy/
 !/toshy/toshy_config.py
 !/wireplumber/
