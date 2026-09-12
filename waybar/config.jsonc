@@ -21,6 +21,7 @@
         "temperature#cpu",
         "temperature#gpu",
         "battery",
+        "custom/weather",
         "clock",
         "tray"
     ],
@@ -142,6 +143,14 @@
         "format-plugged": " {capacity}%",
         "format-icons": ["", "", "", "", ""],
         "tooltip-format": "{timeTo}"
+    },
+
+    "custom/weather": {
+        "exec": "$HOME/.config/waybar/scripts/weather",
+        "return-type": "json",
+        "interval": 900,
+        "signal": 10,
+        "on-click": "pkill -RTMIN+10 waybar"
     },
 
     "clock": {

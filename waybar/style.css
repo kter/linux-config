@@ -53,6 +53,7 @@ window#waybar {
 #power-profiles-daemon,
 #custom-claude-quota,
 #custom-codex-quota,
+#custom-weather,
 #cpu,
 #memory,
 #temperature,
@@ -71,6 +72,7 @@ window#waybar {
 #power-profiles-daemon,
 #custom-claude-quota,
 #custom-codex-quota,
+#custom-weather,
 #cpu,
 #memory,
 #temperature,
@@ -179,6 +181,16 @@ window#waybar {
 /* 音量 */
 #pulseaudio {
     color: #fab387;
+}
+
+/* 天気 */
+#custom-weather {
+    color: #74c7ec;
+}
+
+/* 取得失敗時は直前の値を薄く表示する */
+#custom-weather.stale {
+    color: #6c7086;
 }
 
 /* 時計 */
