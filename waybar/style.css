@@ -51,6 +51,8 @@ window#waybar {
 #backlight,
 #pulseaudio,
 #power-profiles-daemon,
+#custom-claude-quota,
+#custom-codex-quota,
 #cpu,
 #memory,
 #temperature,
@@ -67,6 +69,8 @@ window#waybar {
 #backlight,
 #pulseaudio,
 #power-profiles-daemon,
+#custom-claude-quota,
+#custom-codex-quota,
 #cpu,
 #memory,
 #temperature,
@@ -84,6 +88,25 @@ window#waybar {
 }
 
 #cpu.critical {
+    color: #f38ba8;
+}
+
+/* AI ツールのクォータ */
+#custom-claude-quota {
+    color: #f2cdcd;
+}
+
+#custom-codex-quota {
+    color: #a6e3a1;
+}
+
+#custom-claude-quota.warning,
+#custom-codex-quota.warning {
+    color: #f9e2af;
+}
+
+#custom-claude-quota.critical,
+#custom-codex-quota.critical {
     color: #f38ba8;
 }
 
