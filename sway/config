@@ -140,8 +140,9 @@ bindsym Print exec sh -c 'mkdir -p "$HOME/Pictures/Screenshots" && grim "$HOME/P
 bindsym Shift+Print exec sh -c 'mkdir -p "$HOME/Pictures/Screenshots" && file="$HOME/Pictures/Screenshots/$(date +%Y-%m-%d_%H-%M-%S).png" && grim -g "$(slurp)" - | tee "$file" | wl-copy'
 
 ### 明るさ調整 ###
-bindsym XF86MonBrightnessUp exec brightnessctl set +5%
-bindsym XF86MonBrightnessDown exec brightnessctl set 5%-
+# intel_backlight の最大値 400 に対して 2 段階 = 0.5%
+bindsym XF86MonBrightnessUp exec brightnessctl set +2
+bindsym XF86MonBrightnessDown exec brightnessctl set 2-
 
 ### 音量調整 ###
 bindsym XF86AudioRaiseVolume exec wpctl set-volume -l 1.5 @DEFAULT_AUDIO_SINK@ 5%+
