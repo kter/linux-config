@@ -9,7 +9,7 @@
 test (uname) = Linux; and set -gx LC_CTYPE en_US.UTF-8
 
 # 存在するものだけ PATH に追加する。
-for dir in ~/bin ~/.local/bin
+for dir in ~/bin ~/.local/bin ~/.claude/bin
     test -d $dir; and fish_add_path $dir
 end
 
