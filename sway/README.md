@@ -362,8 +362,8 @@ sudo dnf install brightnessctl
 
 | キー | 動作 |
 |------|------|
-| `XF86MonBrightnessUp` | 明るさ +5% |
-| `XF86MonBrightnessDown` | 明るさ -5% |
+| `XF86MonBrightnessUp` | 明るさ +0.5% |
+| `XF86MonBrightnessDown` | 明るさ -0.5% |
 
 （ノートPCの明るさキー）
 
@@ -536,8 +536,8 @@ ctrl + win
 
 | キー | 動作 |
 |------|------|
-| `XF86MonBrightnessUp` | 明るさ +5% |
-| `XF86MonBrightnessDown` | 明るさ -5% |
+| `XF86MonBrightnessUp` | 明るさ +0.5% |
+| `XF86MonBrightnessDown` | 明るさ -0.5% |
 
 ### スクリーンショット
 
