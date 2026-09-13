@@ -1,0 +1,286 @@
+#!/usr/bin/env python3
+"""Emit current weather and temperature for Waybar.
+
+位置は IP ジオロケーションで推定し（誤差は概ね 25km）、天気は Open-Meteo から
+取得する。どちらも API キー不要。取得に失敗した場合は直前の成功値を
+`stale` クラス付きで出し続け、バーの幅が動かないようにする。
+"""
+
+import html
+import json
+import os
+import sys
+import time
+import urllib.error
+import urllib.request
+from pathlib import Path
+from typing import Any
+
+WEATHER_MAX_AGE = 15 * 60
+LOCATION_MAX_AGE = 60 * 60
+STALE_GIVE_UP = 24 * 60 * 60
+TIMEOUT = 8
+USER_AGENT = "waybar-weather/1.0"
+
+# 周辺の Wi-Fi AP は BeaconDB に未登録で測位できなかったため、IP 測位のみを使う。
+# ip-api.com は都市名まで返すので第一候補。無料枠は HTTP のみ。
+IPAPI_URL = "http://ip-api.com/json/?fields=status,message,city,regionName,lat,lon"
+# 座標だけで良い場合のフォールバック（HTTPS）。
+BEACONDB_URL = "https://api.beacondb.net/v1/geolocate"
+
+OPEN_METEO_URL = (
+    "https://api.open-meteo.com/v1/forecast"
+    "?latitude={lat:.4f}&longitude={lon:.4f}"
+    "&current=temperature_2m,apparent_temperature,relative_humidity_2m,"
+    "wind_speed_10m,weather_code,is_day"
+    "&daily=temperature_2m_max,temperature_2m_min"
+    "&timezone=auto&forecast_days=1"
+)
+
+# Font Awesome 6 Free Solid のグリフ。style.css のフォントスタックに含まれている。
+ICON_SUN = ""
+ICON_MOON = ""
+ICON_CLOUD_SUN = ""
+ICON_CLOUD_MOON = ""
+ICON_CLOUD = ""
+ICON_RAIN = ""
+ICON_HEAVY_RAIN = ""
+ICON_SNOW = ""
+ICON_THUNDER = ""
+ICON_FOG = ""
+ICON_UNKNOWN = ""
+
+# WMO weather code -> (日本語表記, 昼アイコン, 夜アイコン)
+WMO: dict[int, tuple[str, str, str]] = {
+    0: ("晴れ", ICON_SUN, ICON_MOON),
+    1: ("概ね晴れ", ICON_SUN, ICON_MOON),
+    2: ("薄曇り", ICON_CLOUD_SUN, ICON_CLOUD_MOON),
+    3: ("曇り", ICON_CLOUD, ICON_CLOUD),
+    45: ("霧", ICON_FOG, ICON_FOG),
+    48: ("霧氷の霧", ICON_FOG, ICON_FOG),
+    51: ("弱い霧雨", ICON_RAIN, ICON_RAIN),
+    53: ("霧雨", ICON_RAIN, ICON_RAIN),
+    55: ("強い霧雨", ICON_RAIN, ICON_RAIN),
+    56: ("弱い着氷性の霧雨", ICON_RAIN, ICON_RAIN),
+    57: ("着氷性の霧雨", ICON_RAIN, ICON_RAIN),
+    61: ("弱い雨", ICON_RAIN, ICON_RAIN),
+    63: ("雨", ICON_RAIN, ICON_RAIN),
+    65: ("強い雨", ICON_HEAVY_RAIN, ICON_HEAVY_RAIN),
+    66: ("弱い着氷性の雨", ICON_RAIN, ICON_RAIN),
+    67: ("着氷性の雨", ICON_HEAVY_RAIN, ICON_HEAVY_RAIN),
+    71: ("弱い雪", ICON_SNOW, ICON_SNOW),
+    73: ("雪", ICON_SNOW, ICON_SNOW),
+    75: ("強い雪", ICON_SNOW, ICON_SNOW),
+    77: ("霧雪", ICON_SNOW, ICON_SNOW),
+    80: ("弱いにわか雨", ICON_RAIN, ICON_RAIN),
+    81: ("にわか雨", ICON_RAIN, ICON_RAIN),
+    82: ("激しいにわか雨", ICON_HEAVY_RAIN, ICON_HEAVY_RAIN),
+    85: ("弱いにわか雪", ICON_SNOW, ICON_SNOW),
+    86: ("にわか雪", ICON_SNOW, ICON_SNOW),
+    95: ("雷雨", ICON_THUNDER, ICON_THUNDER),
+    96: ("雷雨（弱い雹）", ICON_THUNDER, ICON_THUNDER),
+    99: ("雷雨（雹）", ICON_THUNDER, ICON_THUNDER),
+}
+
+
+class WeatherError(Exception):
+    """An expected failure while obtaining weather information."""
+
+
+def cache_dir() -> Path:
+    cache_home = os.environ.get("XDG_CACHE_HOME")
+    base = Path(cache_home) if cache_home else Path.home() / ".cache"
+    return base / "waybar-weather"
+
+
+def read_cache(name: str) -> dict[str, Any] | None:
+    path = cache_dir() / name
+    try:
+        with path.open(encoding="utf-8") as source:
+            data = json.load(source)
+    except (OSError, json.JSONDecodeError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def write_cache(name: str, payload: dict[str, Any]) -> None:
+    directory = cache_dir()
+    path = directory / name
+    temp = path.with_suffix(".tmp")
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+        with temp.open("w", encoding="utf-8") as sink:
+            json.dump(payload, sink, ensure_ascii=False)
+        temp.replace(path)
+    except OSError:
+        # キャッシュが書けなくても表示自体は続行する。
+        pass
+
+
+def fetch_json(url: str, data: bytes | None = None) -> dict[str, Any]:
+    headers = {"User-Agent": USER_AGENT}
+    if data is not None:
+        headers["Content-Type"] = "application/json"
+    request = urllib.request.Request(url, data=data, headers=headers)
+    try:
+        with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
+            body = response.read()
+    except (urllib.error.URLError, OSError, TimeoutError) as error:
+        raise WeatherError(f"通信失敗: {url.split('/')[2]}") from error
+    try:
+        parsed = json.loads(body)
+    except json.JSONDecodeError as error:
+        raise WeatherError("応答が JSON ではありません") from error
+    if not isinstance(parsed, dict):
+        raise WeatherError("応答の形式が不正です")
+    return parsed
+
+
+def locate_by_ip() -> dict[str, Any]:
+    payload = fetch_json(IPAPI_URL)
+    if payload.get("status") != "success":
+        raise WeatherError(str(payload.get("message") or "IP 測位に失敗"))
+    try:
+        lat = float(payload["lat"])
+        lon = float(payload["lon"])
+    except (KeyError, TypeError, ValueError) as error:
+        raise WeatherError("IP 測位の座標が不正です") from error
+    place = payload.get("city") or payload.get("regionName") or ""
+    return {"lat": lat, "lon": lon, "place": str(place), "fetched_at": time.time()}
+
+
+def locate_by_beacondb() -> dict[str, Any]:
+    payload = fetch_json(BEACONDB_URL, data=json.dumps({"considerIp": True}).encode())
+    location = payload.get("location")
+    if not isinstance(location, dict):
+        raise WeatherError("フォールバック測位に失敗")
+    try:
+        lat = float(location["lat"])
+        lon = float(location["lng"])
+    except (KeyError, TypeError, ValueError) as error:
+        raise WeatherError("フォールバック測位の座標が不正です") from error
+    return {"lat": lat, "lon": lon, "place": "", "fetched_at": time.time()}
+
+
+def resolve_location() -> dict[str, Any]:
+    """座標を決める。環境変数 > 1時間キャッシュ > IP 測位 > 古いキャッシュ。"""
+    override = os.environ.get("WAYBAR_WEATHER_LATLON")
+    if override:
+        try:
+            lat_text, lon_text = override.split(",", 1)
+            return {
+                "lat": float(lat_text),
+                "lon": float(lon_text),
+                "place": os.environ.get("WAYBAR_WEATHER_PLACE", ""),
+                "fetched_at": time.time(),
+            }
+        except ValueError as error:
+            raise WeatherError("WAYBAR_WEATHER_LATLON の形式は lat,lon です") from error
+
+    cached = read_cache("location.json")
+    if cached and time.time() - float(cached.get("fetched_at") or 0) < LOCATION_MAX_AGE:
+        return cached
+
+    for locate in (locate_by_ip, locate_by_beacondb):
+        try:
+            location = locate()
+        except WeatherError:
+            continue
+        write_cache("location.json", location)
+        return location
+
+    if cached:
+        # 期限切れでも、座標が無いより遥かにましだ。
+        return cached
+    raise WeatherError("現在位置を特定できません")
+
+
+def fetch_weather(location: dict[str, Any]) -> dict[str, Any]:
+    payload = fetch_json(OPEN_METEO_URL.format(lat=location["lat"], lon=location["lon"]))
+    current = payload.get("current")
+    daily = payload.get("daily") or {}
+    if not isinstance(current, dict) or "temperature_2m" not in current:
+        raise WeatherError("天気の応答が不正です")
+
+    def first(container: Any) -> Any:
+        return container[0] if isinstance(container, list) and container else None
+
+    return {
+        "temperature": current.get("temperature_2m"),
+        "apparent": current.get("apparent_temperature"),
+        "humidity": current.get("relative_humidity_2m"),
+        "wind": current.get("wind_speed_10m"),
+        "code": current.get("weather_code"),
+        "is_day": current.get("is_day", 1),
+        "high": first(daily.get("temperature_2m_max")),
+        "low": first(daily.get("temperature_2m_min")),
+        "place": location.get("place", ""),
+        "fetched_at": time.time(),
+    }
+
+
+def describe(code: Any, is_day: Any) -> tuple[str, str]:
+    try:
+        label, day_icon, night_icon = WMO[int(code)]
+    except (KeyError, TypeError, ValueError):
+        return "不明", ICON_UNKNOWN
+    return label, (day_icon if is_day else night_icon)
+
+
+def render(weather: dict[str, Any], stale: bool) -> dict[str, str]:
+    label, icon = describe(weather.get("code"), weather.get("is_day", 1))
+    temperature = weather.get("temperature")
+    degrees = f"{float(temperature):.0f}" if temperature is not None else "--"
+
+    lines = [f"{label} {degrees}°C"]
+    if weather.get("apparent") is not None:
+        lines.append(f"体感: {float(weather['apparent']):.0f}°C")
+    if weather.get("high") is not None and weather.get("low") is not None:
+        lines.append(f"最高/最低: {float(weather['high']):.0f} / {float(weather['low']):.0f}°C")
+    if weather.get("humidity") is not None:
+        lines.append(f"湿度: {float(weather['humidity']):.0f}%")
+    if weather.get("wind") is not None:
+        lines.append(f"風速: {float(weather['wind']):.1f} km/h")
+    if weather.get("place"):
+        lines.append(f"地点: {weather['place']}")
+    updated = time.strftime("%H:%M", time.localtime(float(weather.get("fetched_at") or 0)))
+    lines.append(("最終更新: " if stale else "更新: ") + updated)
+
+    return {
+        "text": f"{icon} {degrees}°C",
+        "tooltip": html.escape("\n".join(lines)),
+        "class": "stale" if stale else "",
+    }
+
+
+def error_output(message: str) -> dict[str, str]:
+    return {
+        "text": f"{ICON_UNKNOWN} --°C",
+        "tooltip": html.escape(f"天気を取得できません\n{message}"),
+        "class": "stale",
+    }
+
+
+def main() -> int:
+    cached = read_cache("weather.json")
+    now = time.time()
+    if cached and now - float(cached.get("fetched_at") or 0) < WEATHER_MAX_AGE:
+        print(json.dumps(render(cached, stale=False), ensure_ascii=False))
+        return 0
+
+    try:
+        weather = fetch_weather(resolve_location())
+    except WeatherError as error:
+        if cached and now - float(cached.get("fetched_at") or 0) < STALE_GIVE_UP:
+            print(json.dumps(render(cached, stale=True), ensure_ascii=False))
+            return 0
+        print(json.dumps(error_output(str(error)), ensure_ascii=False))
+        return 0
+
+    write_cache("weather.json", weather)
+    print(json.dumps(render(weather, stale=False), ensure_ascii=False))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
