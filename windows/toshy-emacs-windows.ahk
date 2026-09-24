@@ -78,6 +78,29 @@ IsIde() {
 }
 #HotIf
 
+; Left Alt acts as Command for common application shortcuts.
+; Suppress native Alt menu activation; right Alt remains a native Alt key.
+LAlt::return
+LAlt up::return
+; App-specific variants must precede the general variants.
+#HotIf !CapsPhysicallyHeld() && WinActive("ahk_exe Notepad.exe")
+LAlt & n::Send "^+n"
+LAlt & t::Send "^n"
+#HotIf !CapsPhysicallyHeld() && IsIde()
+LAlt & n::Send "^+n"
+#HotIf !CapsPhysicallyHeld()
+LAlt & f::Send "^f"
+LAlt & a::Send "^a"
+LAlt & x::Send "^x"
+LAlt & c::Send "^c"
+LAlt & v::Send "^v"
+LAlt & w::Send "^w"
+LAlt & n::Send "^n"
+LAlt & t::Send "^t"
+LAlt & q::WinClose "A"
+LAlt & m::WinMinimize "A"
+#HotIf
+
 ; Emergency pause/resume works even when suspended.
 #SuspendExempt True
 ^!F12:: {
