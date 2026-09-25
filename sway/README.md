@@ -243,6 +243,17 @@ name が消えたら `state->device` を NULL に落とす（Release は呼ば�
 > 検証: 復帰後 `journalctl -b | grep -iE 'fprintd|Release|claimed'` に
 > `vanished while claimed; dropping stale device` が出て、その後 claim が成立していれば成功。
 
+
+### 7. クイックメモ（macOS の Stickies 代わり）
+
+`Win + N` で `~/notes/memo.md` を開いた nvim を画面中央に浮動表示し、もう一度押すと
+scratchpad に隠す。`sway/scripts/quickmemo.sh` がウィンドウの有無を見て、無ければ
+（初回や `:q` 後）Ghostty（`--class=local.quickmemo`）で起動してから表示する。
+
+- Toshy は物理 Win キーを Alt として送るため、バインドは `$alt+n`。`$mod+n`（Super）は
+  ターミナルにフォーカスがあると物理 Ctrl が Ctrl のまま届くので反応しない。
+- `--no-repeat` が無いと、キーリピートで表示→非表示が連続して一瞬で消える。
+
 ---
 
 ## コピペ

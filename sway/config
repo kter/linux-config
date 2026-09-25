@@ -209,3 +209,7 @@ exec fcitx5 -d
 
 # IMEのポップアップウィンドウをフローティングにする（必要に応じて）
 for_window [app_id="fcitx"] floating enable, border none
+
+# クイックメモ（Stickies 代わり）: $alt+n（Toshy 経由だと物理 Win+N）で ~/notes/memo.md を浮動表示/非表示
+for_window [app_id="local.quickmemo"] floating enable, resize set 700 450, move position center, move scratchpad
+bindsym --no-repeat $alt+n exec ~/.config/sway/scripts/quickmemo.sh
