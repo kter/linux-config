@@ -53,8 +53,8 @@ timeouts(
 
 # Delays often needed for Wayland and/or virtual machines or slow systems
 throttle_delays(
-    key_pre_delay_ms    = 8,      # default: 0 ms, range: 0-150 ms, suggested: 1-50 ms
-    key_post_delay_ms   = 12,      # default: 0 ms, range: 0-150 ms, suggested: 1-100 ms
+    key_pre_delay_ms    = 1,      # default: 0 ms, range: 0-150 ms, suggested: 1-50 ms
+    key_post_delay_ms   = 2,       # default: 0 ms, range: 0-150 ms, suggested: 1-100 ms
 )
 
 devices_api(
