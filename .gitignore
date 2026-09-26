@@ -16,3 +16,5 @@
 !/toshy/toshy_config.py
 !/wireplumber/
 !/wireplumber/**
+!/claude/
+!/claude/statusline.py
