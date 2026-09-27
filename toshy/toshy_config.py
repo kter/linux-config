@@ -2383,6 +2383,17 @@ cursor_exclude_regex = r"^(foot|gnome-terminal|gnome-shells|konsole|Alacritty|ki
 # 2. ショートカットの定義
 # ---------------------------------------------------------
 
+# A0. foot 用 Command 系ショートカット
+# foot には select-all アクションが無いため、Super+A は foot.ini の
+# pipe-scrollback=[wl-copy] Control+Shift+a でスクロールバック全体をクリップボードへコピーする。
+# foot は Toshy の terminals リストに無いため "Cond modmap - GUI - Win kbd" が効き、
+# 物理 LeftAlt(⌘位置) は RIGHT_CTRL(仮想 Cmd) になる。よって RC-* で受ける。
+keymap("User foot Command Shortcuts", {
+    K("RC-c"): K("Shift-C-c"),    # Cmd + C -> コピー
+    K("RC-v"): K("Shift-C-v"),    # Cmd + V -> 貼り付け
+    K("RC-a"): K("Shift-C-a"),    # Cmd + A -> 全文コピー (pipe-scrollback)
+}, when = matchProps(clas=r"^foot$"))
+
 # A. Command(物理 Win/Super キー)系ショートカット
 # 【ターミナル以外】のすべてのアプリ（VSCode、Chrome、ファイル管理等）で有効
 keymap("User Command Shortcuts", {
