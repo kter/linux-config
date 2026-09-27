@@ -12,6 +12,8 @@
 !/waybar/
 !/waybar/**
 /waybar/scripts/__pycache__/
+!/foot/
+!/foot/foot.ini
 !/toshy/
 !/toshy/toshy_config.py
 !/wireplumber/
