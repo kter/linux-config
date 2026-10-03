@@ -82,7 +82,7 @@
     "custom/codex-quota": {
         "exec": "$HOME/.config/waybar/scripts/ai-quota --target codex",
         "return-type": "json",
-        "interval": 300,
+        "interval": 30,
         "signal": 9,
         "on-click": "pkill -RTMIN+9 waybar"
     },
