@@ -254,6 +254,25 @@ scratchpad に隠す。`sway/scripts/quickmemo.sh` がウィンドウの有無�
   ターミナルにフォーカスがあると物理 Ctrl が Ctrl のまま届くので反応しない。
 - `--no-repeat` が無いと、キーリピートで表示→非表示が連続して一瞬で消える。
 
+### 8. 無操作時のロック・画面オフ・スリープ（swayidle）
+
+| 無操作時間 | バッテリー時 | AC 接続時 |
+|---|---|---|
+| 15分 | ロック | ロック |
+| 20分 | 画面オフ（`dpms off`） | 画面オフ |
+| 30分 | **スリープ** | 何もしない |
+| 60分 | ― | **スリープ** |
+
+swayidle 自体は電源状態を見ないため、30分の `timeout` は `sway/scripts/suspend-on-battery.sh`
+を呼ぶ。`/sys/class/power_supply/` に `online=1` の `Mains` が一つでもあれば何もせず終了し、
+無ければ `systemctl suspend` する。60分の `timeout` は無条件に `systemctl suspend`
+（バッテリー時は30分で先に落ちているので、実質 AC 時だけ効く）。
+
+- logind の `IdleAction` は `ignore` のまま。無操作スリープは swayidle だけが担う。
+- 電源判定は30分到達の瞬間だけ。AC 接続中に30分を過ぎてから抜くと、60分までバッテリーで起きている。
+- sway の `reload` では `exec` が再実行されないため、設定変更後は swayidle を手動で再起動する:
+  `pkill -x swayidle` してから config の `exec swayidle ...` 行を `swaymsg exec` で流す。
+
 ---
 
 ## コピペ
