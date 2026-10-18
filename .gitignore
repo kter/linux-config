@@ -20,3 +20,5 @@
 !/wireplumber/**
 !/claude/
 !/claude/statusline.py
+!/NetworkManager/
+!/NetworkManager/**

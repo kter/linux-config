@@ -1,0 +1,37 @@
+#!/usr/bin/sh
+# NetworkManager dispatcher script: turn the WWAN radio off while Wi-Fi is
+# connected, and back on when it is not.
+#
+# 内蔵モデムは未接続で待機しているだけでも電力を食うため、接続を切るのではなく
+# 無線ごと止める。復帰時は povo 接続の autoconnect に任せる（接続を
+# `nmcli connection down` で切ると NetworkManager がユーザー操作として
+# autoconnect をブロックしてしまうので使わない）。
+#
+# インストール（root 所有・他者書き込み不可でないと NetworkManager に無視される）:
+#   sudo install -m 755 -o root -g root \
+#     ~/.config/NetworkManager/dispatcher.d/90-wwan-wifi-switch \
+#     /etc/NetworkManager/dispatcher.d/
+
+export LC_ALL=C
+
+case "$2" in
+    up|down)
+        ;;
+    *)
+        exit 0;;
+esac
+
+if nmcli -t -f TYPE,STATE device | grep -qx 'wifi:connected'; then
+    want=off
+else
+    want=on
+fi
+
+# 自分の切り替えで発生した wwan0 の up/down でも再度呼ばれるため、
+# 状態が既に望みどおりなら何もしない。
+if [ "$(nmcli radio wwan)" != "$(echo "$want" | sed 's/on/enabled/;s/off/disabled/')" ]; then
+    nmcli radio wwan "$want"
+    logger -t wwan-wifi-switch "Wi-Fi state changed ($1 $2): WWAN radio $want"
+fi
+
+exit 0
