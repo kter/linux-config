@@ -11,6 +11,7 @@
     ],
     "modules-right": [
         "network",
+        "custom/wwan",
         "backlight",
         "pulseaudio",
         "power-profiles-daemon",
@@ -44,6 +45,14 @@
         "format-ethernet": " {ipaddr}",
         "format-disconnected": "⚠ 未接続",
         "tooltip-format": "{essid}\n{ifname}: {ipaddr}\n強度: {signalStrength}%"
+    },
+
+    "custom/wwan": {
+        "exec": "$HOME/.config/waybar/scripts/wwan",
+        "return-type": "json",
+        "interval": 10,
+        "signal": 11,
+        "on-click": "pkill -RTMIN+11 waybar"
     },
 
     "backlight": {

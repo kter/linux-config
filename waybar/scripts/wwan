@@ -1,0 +1,132 @@
+#!/usr/bin/env python3
+"""Emit the built-in WWAN modem (povo SIM) status for Waybar.
+
+ModemManager の `mmcli -J` から状態を読む。Waybar の network モジュールは
+デフォルトルートの1本（通常は Wi-Fi）しか表示しないため、モバイル回線は
+このスクリプトで別に出す。モデムが見つからない場合は空文字を出し、
+モジュールごと非表示にする。
+"""
+
+import html
+import json
+import subprocess
+import sys
+from pathlib import Path
+from typing import Any
+
+TIMEOUT = 5
+
+# Font Awesome 6 Free Solid のグリフ。style.css のフォントスタックに含まれている。
+ICON_SIGNAL = ""
+
+STATE_LABELS = {
+    "connected": "接続中",
+    "connecting": "接続処理中",
+    "disconnecting": "切断処理中",
+    "registered": "待機（未接続）",
+    "searching": "圏外・探索中",
+    "enabled": "有効（未登録）",
+    "disabled": "無効",
+    "locked": "SIM ロック中",
+    "failed": "エラー",
+}
+
+
+def mmcli(*args: str) -> dict[str, Any] | None:
+    try:
+        out = subprocess.run(
+            ["mmcli", "-J", *args],
+            capture_output=True,
+            text=True,
+            timeout=TIMEOUT,
+            check=True,
+        ).stdout
+        return json.loads(out)
+    except (OSError, subprocess.SubprocessError, json.JSONDecodeError):
+        return None
+
+
+def access_label(techs: list[str]) -> str:
+    # NSA 5G では lte と 5gnr が並んで返る。
+    if "5gnr" in techs:
+        return "5G"
+    if "lte" in techs:
+        return "4G"
+    if any(t in techs for t in ("umts", "hsdpa", "hsupa", "hspa", "hspa-plus")):
+        return "3G"
+    return "--"
+
+
+def human_bytes(n: int) -> str:
+    size = float(n)
+    for unit in ("B", "KiB", "MiB", "GiB"):
+        if size < 1024 or unit == "GiB":
+            return f"{size:.1f} {unit}" if unit != "B" else f"{int(size)} B"
+        size /= 1024
+    return f"{n} B"
+
+
+def traffic(ifname: str) -> tuple[int, int] | None:
+    stats = Path("/sys/class/net") / ifname / "statistics"
+    try:
+        rx = int((stats / "rx_bytes").read_text())
+        tx = int((stats / "tx_bytes").read_text())
+    except (OSError, ValueError):
+        return None
+    return rx, tx
+
+
+def build() -> dict[str, Any]:
+    listing = mmcli("-L")
+    paths = (listing or {}).get("modem-list") or []
+    if not paths:
+        return {"text": "", "tooltip": "", "class": "absent"}
+
+    modem = (mmcli("-m", paths[0]) or {}).get("modem", {})
+    generic = modem.get("generic", {})
+    gpp = modem.get("3gpp", {})
+
+    state = generic.get("state", "unknown")
+    signal = generic.get("signal-quality", {}).get("value", "0")
+    tech = access_label(generic.get("access-technologies", []))
+    operator = gpp.get("operator-name", "--")
+
+    lines = [
+        f"{html.escape(operator)} ({tech})",
+        f"状態: {STATE_LABELS.get(state, state)}",
+        f"電波: {signal}%",
+    ]
+
+    for bearer_path in generic.get("bearers", []):
+        bearer = (mmcli("-b", bearer_path) or {}).get("bearer", {})
+        if bearer.get("status", {}).get("connected") != "yes":
+            continue
+        ifname = bearer.get("status", {}).get("interface", "--")
+        ipv4 = bearer.get("ipv4-config", {}).get("address", "--")
+        apn = bearer.get("properties", {}).get("apn", "--")
+        lines.append(f"{ifname}: {ipv4}")
+        lines.append(f"APN: {html.escape(apn)}")
+        counts = traffic(ifname)
+        if counts:
+            rx, tx = counts
+            lines.append(f"受信 {human_bytes(rx)} / 送信 {human_bytes(tx)}（接続以降）")
+        break
+
+    if state == "connected":
+        text = f"{ICON_SIGNAL} {tech} {signal}%"
+        css = "connected"
+    else:
+        text = f"{ICON_SIGNAL} {STATE_LABELS.get(state, state)}"
+        css = "disconnected"
+
+    return {"text": text, "tooltip": "\n".join(lines), "class": css}
+
+
+def main() -> int:
+    json.dump(build(), sys.stdout, ensure_ascii=False)
+    sys.stdout.write("\n")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
