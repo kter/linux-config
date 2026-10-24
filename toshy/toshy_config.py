@@ -434,6 +434,7 @@ terminals = [
     "dev.warp.Warp",
     "eterm",
     ".*ghostty.*",
+    "local.quickmemo",                # sway クイックメモ (Ghostty --class)
     # "ghostty",                        # Replaced with double-wildcard ghostty pattern
     # "ghostty-debug",                  # Replaced with double-wildcard ghostty pattern
     "gnome-terminal",
@@ -2321,7 +2322,7 @@ modmap("Cond modmap - Terms - Mac kbd", {
 ## })
 ## 
 ## # 除外したいターミナルアプリのリスト（クラス名）
-## term_regex = r"^(gnome-terminal|gnome-shells|konsole|Alacritty|kitty|xfce4-terminal|com\.mitchellh\.ghostty|wezterm)$"
+## term_regex = r"^(gnome-terminal|gnome-shells|konsole|Alacritty|kitty|xfce4-terminal|com\.mitchellh\.ghostty|local\.quickmemo|wezterm)$"
 ## ide_regex = r"^(code|antigravity)$"
 ## 
 ## # 2. ショートカットの定義
@@ -2371,13 +2372,13 @@ define_modmap({
 # アプリケーション判定用正規表現
 # ---------------------------------------------------------
 # ターミナル：カーソル移動もCommand系もすべて除外（アプリ側で制御）
-term_regex = r"^(foot|gnome-terminal|gnome-shells|konsole|Alacritty|kitty|xfce4-terminal|com\.mitchellh\.ghostty|wezterm)$"
+term_regex = r"^(foot|gnome-terminal|gnome-shells|konsole|Alacritty|kitty|xfce4-terminal|com\.mitchellh\.ghostty|local\.quickmemo|wezterm)$"
 
 # IDE (VSCodeなど)：カーソル移動のみ除外、Command系は有効
 ide_regex = r"^(code|Code|VSCodium|code-oss|antigravity)$"
 
 # カーソル移動から除外するアプリの合体リスト（ターミナル + IDE）
-cursor_exclude_regex = r"^(foot|gnome-terminal|gnome-shells|konsole|Alacritty|kitty|xfce4-terminal|com\.mitchellh\.ghostty|wezterm|code|Code|VSCodium|code-oss|antigravity)$"
+cursor_exclude_regex = r"^(foot|gnome-terminal|gnome-shells|konsole|Alacritty|kitty|xfce4-terminal|com\.mitchellh\.ghostty|local\.quickmemo|wezterm|code|Code|VSCodium|code-oss|antigravity)$"
 
 # ---------------------------------------------------------
 # 2. ショートカットの定義
