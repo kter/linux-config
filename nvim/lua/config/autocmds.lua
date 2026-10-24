@@ -35,6 +35,13 @@ vim.api.nvim_create_autocmd("FileType", {
     vim.opt_local.tabstop = 2
     vim.opt_local.shiftwidth = 2
     vim.opt_local.softtabstop = 2
+    -- Global nowrap scrolls horizontally on long lines, and the view stays
+    -- shifted after <Enter>, hiding the new line's "* ". Wrap prose instead,
+    -- aligning continuation lines with the list item's text.
+    vim.opt_local.wrap = true
+    vim.opt_local.linebreak = true
+    vim.opt_local.breakindent = true
+    vim.opt_local.breakindentopt = "list:-1"
   end,
 })
 
