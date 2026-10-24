@@ -253,6 +253,9 @@ scratchpad に隠す。`sway/scripts/quickmemo.sh` がウィンドウの有無�
 - Toshy は物理 Win キーを Alt として送るため、バインドは `$alt+n`。`$mod+n`（Super）は
   ターミナルにフォーカスがあると物理 Ctrl が Ctrl のまま届くので反応しない。
 - `--no-repeat` が無いと、キーリピートで表示→非表示が連続して一瞬で消える。
+- class が `local.quickmemo` なので Toshy の ghostty 判定（`.*ghostty.*`）に当たらず、GUI アプリ扱いで
+  Ctrl が書き換えられて `Ctrl+[` 等が nvim に届かない。`~/.config/toshy/toshy_config.py` の
+  `terminals` リストと `term_regex` / `cursor_exclude_regex` に `local.quickmemo` を追加済み。
 
 ### 8. 無操作時のロック・画面オフ・スリープ（swayidle）
 
