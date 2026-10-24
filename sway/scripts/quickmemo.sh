@@ -10,7 +10,8 @@ exists() {
 
 if ! exists; then
     mkdir -p "$(dirname "$MEMO")"
-    ghostty --class="$APP_ID" -e nvim "$MEMO" >/dev/null 2>&1 &
+    # 普段のターミナル (foot 既定: monospace 8pt) と揃える。Ghostty 既定は 12pt で大きく見える
+    ghostty --class="$APP_ID" --font-family=monospace --font-size=8 -e nvim "$MEMO" >/dev/null 2>&1 &
     # for_window で scratchpad へ送られるまで待つ（最大5秒）
     i=0
     until exists || [ "$i" -ge 50 ]; do sleep 0.1; i=$((i + 1)); done
