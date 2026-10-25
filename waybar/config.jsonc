@@ -21,7 +21,7 @@
         "memory",
         "temperature#cpu",
         "temperature#gpu",
-        "battery",
+        "custom/battery",
         "custom/weather",
         "clock",
         "tray"
@@ -142,16 +142,12 @@
         "tooltip-format": "GPU: {temperatureC}°C"
     },
 
-    "battery": {
-        "states": {
-            "warning": 30,
-            "critical": 15
-        },
-        "format": "{icon} {capacity}%",
-        "format-charging": " {capacity}%",
-        "format-plugged": " {capacity}%",
-        "format-icons": ["", "", "", "", ""],
-        "tooltip-format": "{timeTo}"
+    "custom/battery": {
+        "exec": "$HOME/.config/waybar/scripts/battery",
+        "return-type": "json",
+        "interval": 30,
+        "signal": 12,
+        "on-click": "pkill -RTMIN+12 waybar"
     },
 
     "custom/weather": {
