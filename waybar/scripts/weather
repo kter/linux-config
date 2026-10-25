@@ -4,19 +4,33 @@
 位置は IP ジオロケーションで推定し（誤差は概ね 25km）、天気は Open-Meteo から
 取得する。どちらも API キー不要。取得に失敗した場合は直前の成功値を
 `stale` クラス付きで出し続け、バーの幅が動かないようにする。
+
+ツールチップには今後12時間の雨量を棒グラフで出す。Yahoo! 気象情報 API の
+Client ID があれば、気象庁レーダー由来の今後1時間（10分刻み）も出す。
+Client ID は環境変数 WAYBAR_WEATHER_YOLP_APPID か
+~/.config/waybar-weather/yolp-appid に置く（後者は dotfiles の管理外）。
 """
 
+import calendar
 import html
 import json
+import math
 import os
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import Any
 
 WEATHER_MAX_AGE = 15 * 60
+NOWCAST_MAX_AGE = 5 * 60
+# これより古いナウキャストは現状とずれるので出さない。
+NOWCAST_STALE = 15 * 60
+# Waybar の実行間隔とキャッシュ期限が同じだと、取得にかかった数秒のせいで毎回
+# 期限にわずかに届かず、更新が1回おきになる。その分の余裕。
+CACHE_MARGIN = 30
 LOCATION_MAX_AGE = 60 * 60
 STALE_GIVE_UP = 24 * 60 * 60
 TIMEOUT = 8
@@ -34,8 +48,24 @@ OPEN_METEO_URL = (
     "&current=temperature_2m,apparent_temperature,relative_humidity_2m,"
     "wind_speed_10m,weather_code,is_day"
     "&daily=temperature_2m_max,temperature_2m_min"
+    "&hourly=precipitation,precipitation_probability&forecast_hours=13"
     "&timezone=auto&forecast_days=1"
 )
+
+# Open-Meteo にも minutely_15 はあるが、日本では1時間値を割り振っただけなので
+# 直近1時間は Yahoo! のレーダー実況＋予測（10分刻み、60分先まで）を使う。
+YOLP_URL = (
+    "https://map.yahooapis.jp/weather/V1/place"
+    "?coordinates={lon:.4f},{lat:.4f}&output=json&interval=10&appid={appid}"
+)
+
+# 棒グラフ。3行×8段で、雨量は対数目盛り（RAIN_SCALE_MAX mm/h で最上段）。
+BLOCKS = " ▁▂▃▄▅▆▇█"
+CHART_ROWS = 3
+RAIN_SCALE_MAX = 30.0
+BAR_COLOR = "#74c7ec"
+BASELINE_COLOR = "#6c7086"
+SEPARATOR = "─" * 16
 
 # Font Awesome 6 Free Solid のグリフ。style.css のフォントスタックに含まれている。
 ICON_SUN = ""
@@ -91,6 +121,18 @@ def cache_dir() -> Path:
     cache_home = os.environ.get("XDG_CACHE_HOME")
     base = Path(cache_home) if cache_home else Path.home() / ".cache"
     return base / "waybar-weather"
+
+
+def yolp_appid() -> str:
+    appid = os.environ.get("WAYBAR_WEATHER_YOLP_APPID", "").strip()
+    if appid:
+        return appid
+    config_home = os.environ.get("XDG_CONFIG_HOME")
+    base = Path(config_home) if config_home else Path.home() / ".config"
+    try:
+        return (base / "waybar-weather" / "yolp-appid").read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
 
 
 def read_cache(name: str) -> dict[str, Any] | None:
@@ -205,7 +247,31 @@ def fetch_weather(location: dict[str, Any]) -> dict[str, Any]:
     def first(container: Any) -> Any:
         return container[0] if isinstance(container, list) and container else None
 
+    # hourly の値は「その時刻までの1時間」の量で、時刻は取得地点の現地時刻
+    # （timezone=auto）。OS のタイムゾーンと違うこともあるので、区間の終わりを
+    # UTC のエポック秒で持ち、ラベルには区間の始まりの時を使う。
+    offset = int(payload.get("utc_offset_seconds") or 0)
+
+    def epoch(stamp: str) -> float:
+        return calendar.timegm(time.strptime(stamp, "%Y-%m-%dT%H:%M")) - offset
+
+    hourly = payload.get("hourly") or {}
+    forecast = [
+        {
+            "end": epoch(str(stamp)),
+            "hour": (int(str(stamp)[11:13]) - 1) % 24,
+            "rain": rain,
+            "probability": probability,
+        }
+        for stamp, rain, probability in zip(
+            hourly.get("time") or [],
+            hourly.get("precipitation") or [],
+            hourly.get("precipitation_probability") or [],
+        )
+    ]
+
     return {
+        "forecast": forecast,
         "temperature": current.get("temperature_2m"),
         "apparent": current.get("apparent_temperature"),
         "humidity": current.get("relative_humidity_2m"),
@@ -219,6 +285,26 @@ def fetch_weather(location: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def fetch_nowcast(location: dict[str, Any], appid: str) -> dict[str, Any]:
+    url = YOLP_URL.format(
+        lat=location["lat"], lon=location["lon"], appid=urllib.parse.quote(appid)
+    )
+    payload = fetch_json(url)
+    if "Error" in payload:
+        raise WeatherError("Yahoo! 気象情報 API がエラーを返しました")
+    try:
+        entries = payload["Feature"][0]["Property"]["WeatherList"]["Weather"]
+        points = [
+            {"time": f"{entry['Date'][8:10]}:{entry['Date'][10:12]}", "rain": float(entry["Rainfall"])}
+            for entry in entries
+        ]
+    except (KeyError, IndexError, TypeError, ValueError) as error:
+        raise WeatherError("ナウキャストの応答が不正です") from error
+    if not points:
+        raise WeatherError("ナウキャストが空です")
+    return {"points": points, "fetched_at": time.time()}
+
+
 def describe(code: Any, is_day: Any) -> tuple[str, str]:
     try:
         label, day_icon, night_icon = WMO[int(code)]
@@ -227,7 +313,68 @@ def describe(code: Any, is_day: Any) -> tuple[str, str]:
     return label, (day_icon if is_day else night_icon)
 
 
-def render(weather: dict[str, Any], stale: bool) -> dict[str, str]:
+def rain_level(value: Any) -> int:
+    """雨量を 0..CHART_ROWS*8 の段数にする。少しでも降るなら最低1段。"""
+    try:
+        rain = float(value)
+    except (TypeError, ValueError):
+        return 0
+    if rain <= 0:
+        return 0
+    ratio = math.log1p(min(rain, RAIN_SCALE_MAX)) / math.log1p(RAIN_SCALE_MAX)
+    return max(1, math.ceil(ratio * CHART_ROWS * 8))
+
+
+def bar_chart(values: list[Any], labels: dict[int, str]) -> list[str]:
+    """Pango markup の縦棒グラフ。1本は2文字幅で、間に1文字空ける。"""
+    levels = [rain_level(value) for value in values]
+    rows = []
+    for row in range(CHART_ROWS - 1, -1, -1):
+        cells = []
+        for level in levels:
+            if row == 0 and level == 0:
+                cells.append(f'<span foreground="{BASELINE_COLOR}">▁▁</span>')
+            else:
+                fill = min(max(level - row * 8, 0), 8)
+                cells.append(f'<span foreground="{BAR_COLOR}">{BLOCKS[fill] * 2}</span>')
+        rows.append(f"<tt>{' '.join(cells)}</tt>")
+
+    axis = [" "] * (len(values) * 3)
+    for index, text in labels.items():
+        start = index * 3
+        axis[start : start + len(text)] = text
+    rows.append(f"<tt>{html.escape(''.join(axis).rstrip())}</tt>")
+    return rows
+
+
+def nowcast_lines(nowcast: dict[str, Any]) -> list[str]:
+    points = nowcast["points"]
+    rains = [point["rain"] for point in points]
+    labels = {index: str(index * 10) for index in range(0, len(points), 2)}
+    lines = [html.escape(f"今後1時間 (mm/h, {points[0]['time']}〜)")]
+    lines += bar_chart(rains, labels)
+    peak = max(rains)
+    lines.append(html.escape(f"最大 {peak:.1f} mm/h" if peak > 0 else "雨の予報なし"))
+    return lines
+
+
+def forecast_lines(forecast: list[dict[str, Any]]) -> list[str]:
+    rains = [entry["rain"] for entry in forecast]
+    labels = {index: f"{forecast[index]['hour']}" for index in range(0, len(forecast), 3)}
+    lines = [html.escape(f"今後{len(forecast)}時間 (mm, 時)")]
+    lines += bar_chart(rains, labels)
+    total = sum(float(rain or 0) for rain in rains)
+    probabilities = [entry["probability"] for entry in forecast if entry["probability"] is not None]
+    summary = f"合計 {total:.1f} mm" if total > 0 else "雨の予報なし"
+    if probabilities:
+        summary += f" / 降水確率 最大 {max(probabilities):.0f}%"
+    lines.append(html.escape(summary))
+    return lines
+
+
+def render(
+    weather: dict[str, Any], stale: bool, nowcast: dict[str, Any] | None = None
+) -> dict[str, str]:
     label, icon = describe(weather.get("code"), weather.get("is_day", 1))
     temperature = weather.get("temperature")
     degrees = f"{float(temperature):.0f}" if temperature is not None else "--"
@@ -241,14 +388,29 @@ def render(weather: dict[str, Any], stale: bool) -> dict[str, str]:
         lines.append(f"湿度: {float(weather['humidity']):.0f}%")
     if weather.get("wind") is not None:
         lines.append(f"風速: {float(weather['wind']):.1f} km/h")
+    # ここまでは素のテキスト。以降はグラフの markup を混ぜるので行ごとにエスケープする。
+    lines = [html.escape(line) for line in lines]
+
+    if nowcast:
+        lines += [SEPARATOR, *nowcast_lines(nowcast)]
+    # 古いキャッシュを出すときに過ぎた時間帯を「今後」と呼ばないよう、まだ終わっていない区間に絞る。
+    now = time.time()
+    upcoming = [
+        entry for entry in weather.get("forecast") or [] if float(entry.get("end") or 0) > now
+    ][:12]
+    if upcoming:
+        lines += [SEPARATOR, *forecast_lines(upcoming)]
+
+    footer = []
     if weather.get("place"):
-        lines.append(f"地点: {weather['place']}")
+        footer.append(f"地点: {weather['place']}")
     updated = time.strftime("%H:%M", time.localtime(float(weather.get("fetched_at") or 0)))
-    lines.append(("最終更新: " if stale else "更新: ") + updated)
+    footer.append(("最終更新: " if stale else "更新: ") + updated)
+    lines += [SEPARATOR, *(html.escape(line) for line in footer)]
 
     return {
         "text": f"{icon} {degrees}°C",
-        "tooltip": html.escape("\n".join(lines)),
+        "tooltip": "\n".join(lines),
         "class": "stale" if stale else "",
     }
 
@@ -261,24 +423,42 @@ def error_output(message: str) -> dict[str, str]:
     }
 
 
+def load_nowcast(now: float) -> dict[str, Any] | None:
+    """Client ID が無い、または新しいデータが取れなければ None（グラフを出さない）。"""
+    appid = yolp_appid()
+    if not appid:
+        return None
+    cached = read_cache("nowcast.json")
+    age = now - float(cached.get("fetched_at") or 0) if cached else math.inf
+    if cached and age < NOWCAST_MAX_AGE - CACHE_MARGIN:
+        return cached
+    try:
+        nowcast = fetch_nowcast(resolve_location(), appid)
+    except WeatherError:
+        return cached if cached and age < NOWCAST_STALE else None
+    write_cache("nowcast.json", nowcast)
+    return nowcast
+
+
 def main() -> int:
     cached = read_cache("weather.json")
     now = time.time()
-    if cached and now - float(cached.get("fetched_at") or 0) < WEATHER_MAX_AGE:
-        print(json.dumps(render(cached, stale=False), ensure_ascii=False))
+    nowcast = load_nowcast(now)
+    if cached and now - float(cached.get("fetched_at") or 0) < WEATHER_MAX_AGE - CACHE_MARGIN:
+        print(json.dumps(render(cached, stale=False, nowcast=nowcast), ensure_ascii=False))
         return 0
 
     try:
         weather = fetch_weather(resolve_location())
     except WeatherError as error:
         if cached and now - float(cached.get("fetched_at") or 0) < STALE_GIVE_UP:
-            print(json.dumps(render(cached, stale=True), ensure_ascii=False))
+            print(json.dumps(render(cached, stale=True, nowcast=nowcast), ensure_ascii=False))
             return 0
         print(json.dumps(error_output(str(error)), ensure_ascii=False))
         return 0
 
     write_cache("weather.json", weather)
-    print(json.dumps(render(weather, stale=False), ensure_ascii=False))
+    print(json.dumps(render(weather, stale=False, nowcast=nowcast), ensure_ascii=False))
     return 0
 
 
