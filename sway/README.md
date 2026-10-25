@@ -256,6 +256,9 @@ scratchpad に隠す。`sway/scripts/quickmemo.sh` がウィンドウの有無�
 - class が `local.quickmemo` なので Toshy の ghostty 判定（`.*ghostty.*`）に当たらず、GUI アプリ扱いで
   Ctrl が書き換えられて `Ctrl+[` 等が nvim に届かない。`~/.config/toshy/toshy_config.py` の
   `terminals` リストと `term_regex` / `cursor_exclude_regex` に `local.quickmemo` を追加済み。
+- メモを出したまま下のタイル窓へフォーカスを移すのは `$alt+space`（物理 Win+Space）の `focus mode_toggle`。
+  `$mod+space` は物理 Ctrl+Space が IME 切替（fcitx5 / Toshy の `C-Space`）に取られて届かない。
+  `focus left/right` や `focus prev/next` はフロート窓同士でしか移動しない。
 
 ### 8. 無操作時のロック・画面オフ・スリープ（swayidle）
 

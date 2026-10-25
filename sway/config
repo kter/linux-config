@@ -99,6 +99,8 @@ bindsym $alt+t floating toggle
 
 ### フロートへのフォーカス切替 ###
 bindsym $mod+space focus mode_toggle
+# 物理 Ctrl+Space は IME 切替（Toshy の C-Space）に取られて $mod+space が届かないため $alt 側にも割り当てる
+bindsym $alt+space focus mode_toggle
 bindsym Shift+$mod+space focus floating
 
 ### スティッキー（全ワークスペース表示） ###
