@@ -1,0 +1,348 @@
+#!/usr/bin/env python3
+"""Emit battery level and its recent history for Waybar.
+
+現在値は /sys/class/power_supply から、履歴は UPower が /var/lib/upower に
+書き出す history-*.dat から読む。どちらも root 不要。
+
+ツールチップには直近12時間の残量推移と、1時間ごとの平均消費電力を出す。
+UPower はメモリ上の履歴を約10分おきにしかファイルへ保存しないため、
+末尾には sysfs の現在値を足して最新に揃える。
+"""
+
+import html
+import json
+import math
+import sys
+import time
+from pathlib import Path
+
+POWER_SUPPLY = Path("/sys/class/power_supply")
+UPOWER_HISTORY = Path("/var/lib/upower")
+
+HOURS = 12
+# 残量グラフの1列が表す時間。12時間を36列にして天気のグラフと幅を揃える。
+SLOT_SECONDS = 20 * 60
+WARNING = 30
+CRITICAL = 15
+
+BLOCKS = " ▁▂▃▄▅▆▇█"
+HBLOCKS = " ▏▎▍▌▋▊▉█"
+CHART_ROWS = 3
+POWER_BAR_WIDTH = 12
+# 消費電力がこれ未満でも棒の長さの基準はこの値にし、軽い負荷を大きく見せない。
+POWER_SCALE_MIN = 10.0
+# 消費電力の測定値をこれより長くは続いたものとみなさない（サスペンド中の空白を埋めないため）。
+RATE_HOLD_MAX = 5 * 60
+DISCHARGE_COLOR = "#89b4fa"
+CHARGE_COLOR = "#a6e3a1"
+BASELINE_COLOR = "#6c7086"
+SEPARATOR = "─" * 16
+
+STATUS_LABELS = {
+    "charging": "充電中",
+    "discharging": "放電中",
+    "fully-charged": "満充電",
+    "pending-charge": "充電待ち",
+    "pending-discharge": "放電待ち",
+}
+
+
+def find_battery() -> Path | None:
+    batteries = sorted(POWER_SUPPLY.glob("BAT*"))
+    return batteries[0] if batteries else None
+
+
+def read_sysfs(path: Path) -> str | None:
+    try:
+        return path.read_text().strip()
+    except OSError:
+        return None
+
+
+def read_number(path: Path) -> float | None:
+    value = read_sysfs(path)
+    try:
+        return float(value) if value is not None else None
+    except ValueError:
+        return None
+
+
+def ac_online() -> bool:
+    for supply in POWER_SUPPLY.iterdir():
+        if read_sysfs(supply / "type") == "Mains" and read_sysfs(supply / "online") == "1":
+            return True
+    return False
+
+
+def read_current(battery: Path) -> dict:
+    # UPower の履歴と同じ語彙に揃える（sysfs は "Discharging" "Not charging" など）。
+    status = (read_sysfs(battery / "status") or "unknown").lower().replace(" ", "-")
+    if status == "full":
+        status = "fully-charged"
+    elif status == "not-charging":
+        status = "pending-charge"
+    energy = read_number(battery / "energy_now")
+    full = read_number(battery / "energy_full")
+    power = read_number(battery / "power_now")
+    return {
+        "capacity": read_number(battery / "capacity"),
+        "status": status,
+        # sysfs の単位は µWh / µW。
+        "energy": energy / 1e6 if energy is not None else None,
+        "full": full / 1e6 if full is not None else None,
+        "power": power / 1e6 if power is not None else None,
+        "ac": ac_online(),
+    }
+
+
+def history_id(battery: Path) -> str | None:
+    """UPower が履歴ファイル名に使う「型番-設計容量Wh-シリアル」を sysfs から組み立てる。"""
+    model = read_sysfs(battery / "model_name")
+    design = read_number(battery / "energy_full_design")
+    serial = read_sysfs(battery / "serial_number")
+    if not model or not design or not serial:
+        return None
+    return f"{model}-{design / 1e6:.0f}-{serial}"
+
+
+def history_file(kind: str, battery_id: str | None) -> Path | None:
+    """識別子が分かればその電池のファイルを使い、無ければ最も新しく書かれたものにする。"""
+    if battery_id:
+        path = UPOWER_HISTORY / f"history-{kind}-{battery_id}.dat"
+        if path.exists():
+            return path
+    candidates = list(UPOWER_HISTORY.glob(f"history-{kind}-*.dat"))
+    candidates = [path for path in candidates if not path.name.endswith("generic_id.dat")]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda path: path.stat().st_mtime)
+
+
+def read_history(kind: str, battery_id: str | None, since: float) -> list[tuple[float, float, str]]:
+    """(時刻, 値, 状態) の列。since より前は、その時点の値を知るために直前の1点だけ残す。"""
+    path = history_file(kind, battery_id)
+    if path is None:
+        return []
+    points = []
+    try:
+        lines = path.read_text().splitlines()
+    except OSError:
+        return []
+    for line in lines:
+        fields = line.split("\t")
+        if len(fields) < 3:
+            continue
+        try:
+            points.append((float(fields[0]), float(fields[1]), fields[2]))
+        except ValueError:
+            continue
+    points.sort()
+    before = [point for point in points if point[0] < since]
+    return before[-1:] + [point for point in points if point[0] >= since]
+
+
+def charge_slots(history: list[tuple[float, float, str]], start: float) -> list[tuple[float, str] | None]:
+    """各列の終わり時点の残量と、その列の中で充電していたか。履歴が始まる前の列は None。"""
+    slots: list[tuple[float, str] | None] = []
+    index = 0
+    last = None
+    count = HOURS * 3600 // SLOT_SECONDS
+    for slot in range(count):
+        slot_start = start + slot * SLOT_SECONDS
+        slot_end = slot_start + SLOT_SECONDS
+        while index < len(history) and history[index][0] <= slot_start:
+            last = history[index]
+            index += 1
+        # 列の途中で放電に切り替わっても、列の始まりで充電中だったならその色にする。
+        charging = last is not None and last[2] == "charging"
+        while index < len(history) and history[index][0] < slot_end:
+            last = history[index]
+            if last[2] == "charging":
+                charging = True
+            index += 1
+        if last is None:
+            slots.append(None)
+            continue
+        slots.append((last[1], "charging" if charging else last[2]))
+    return slots
+
+
+def charge_chart(slots: list[tuple[float, str] | None], start: float) -> list[str]:
+    """Pango markup の面グラフ。1列1文字で、充電していた列は色を変える。"""
+    rows = []
+    for row in range(CHART_ROWS - 1, -1, -1):
+        cells = []
+        for slot in slots:
+            if slot is None:
+                cells.append(f'<span foreground="{BASELINE_COLOR}">{"▁" if row == 0 else " "}</span>')
+                continue
+            percent, status = slot
+            level = max(1, math.ceil(percent / 100 * CHART_ROWS * 8)) if percent > 0 else 0
+            fill = min(max(level - row * 8, 0), 8)
+            color = CHARGE_COLOR if status != "discharging" else DISCHARGE_COLOR
+            cells.append(f'<span foreground="{color}">{BLOCKS[fill]}</span>')
+        rows.append(f"<tt>{''.join(cells)}</tt>")
+
+    # 3時間おきの正時に時刻を振る。
+    axis = [" "] * len(slots)
+    for index in range(len(slots)):
+        moment = time.localtime(start + index * SLOT_SECONDS)
+        if moment.tm_min == 0 and moment.tm_hour % 3 == 0:
+            label = str(moment.tm_hour)
+            axis[index : index + len(label)] = label
+    rows.append(f"<tt>{html.escape(''.join(axis).rstrip())}</tt>")
+    return rows
+
+
+def local_floor(moment: float, step: int) -> float:
+    """現地時刻で step 秒の境目に切り捨てる。UTC で丸めると30分ずれの地域で正時にならない。"""
+    offset = time.localtime(moment).tm_gmtoff
+    return moment - (moment + offset) % step
+
+
+def power_spans(history: list[tuple[float, float, str]], now: float) -> list[tuple[float, float, float, str]]:
+    """各測定値を次の測定までの (開始, 終了, 電力, 状態) の区間にする。
+
+    UPower は起動中なら約30秒おきに記録するので、それより大きく空いた所はサスペンドか
+    電源断とみなし、測定値を RATE_HOLD_MAX 秒より先へは延ばさない。
+    """
+    spans = []
+    for index, (moment, value, status) in enumerate(history):
+        following = history[index + 1][0] if index + 1 < len(history) else now
+        spans.append((moment, min(following, moment + RATE_HOLD_MAX), value, status))
+    return spans
+
+
+def power_lines(history: list[tuple[float, float, str]], now: float) -> list[str]:
+    """1時間ごとの平均消費電力の横棒。充電中の値は放電の電力ではないので数えない。
+
+    測定間隔は一定ではないため、各測定値が続いた時間で重み付けする。放電中の 0 W は
+    計測できなかった値なので除く。
+    """
+    spans = power_spans(history, now)
+    hour_start = local_floor(now, 3600)
+    starts = [hour_start - offset * 3600 for offset in range(HOURS - 1, -1, -1)]
+    averages: list[float | None] = []
+    charged: list[bool] = []
+    total_energy = total_seconds = 0.0
+    for begin in starts:
+        end = begin + 3600
+        energy = seconds = 0.0
+        on_ac = False
+        for span_start, span_end, value, status in spans:
+            overlap = min(span_end, end) - max(span_start, begin)
+            if overlap <= 0:
+                continue
+            if status != "discharging":
+                on_ac = True
+            elif value > 0:
+                energy += value * overlap
+                seconds += overlap
+        averages.append(energy / seconds if seconds else None)
+        charged.append(on_ac)
+        total_energy += energy
+        total_seconds += seconds
+
+    known = [value for value in averages if value is not None]
+    scale = max([POWER_SCALE_MIN, *known])
+    lines = [html.escape("消費電力 (時, 1時間平均)")]
+    for begin, average, on_ac in zip(starts, averages, charged):
+        hour = time.strftime("%H", time.localtime(begin))
+        if average is None:
+            note = "AC" if on_ac else "記録なし"
+            lines.append(f'<tt>{hour} <span foreground="{BASELINE_COLOR}">{note}</span></tt>')
+            continue
+        eighths = max(1, round(average / scale * POWER_BAR_WIDTH * 8))
+        bar = "█" * (eighths // 8) + (HBLOCKS[eighths % 8] if eighths % 8 else "")
+        bar = bar.ljust(POWER_BAR_WIDTH)
+        lines.append(
+            f'<tt>{hour} <span foreground="{DISCHARGE_COLOR}">{bar}</span> {average:4.1f}W</tt>'
+        )
+    if total_seconds:
+        # 時間帯ごとの平均を平均すると短い時間帯が重くなるので、全区間で重み付けし直す。
+        lines.append(
+            html.escape(f"放電中の平均 {total_energy / total_seconds:.1f} W / 最大 {max(known):.1f} W")
+        )
+    return lines
+
+
+def format_duration(hours: float) -> str:
+    minutes = round(hours * 60)
+    return f"{minutes // 60}時間{minutes % 60:02d}分"
+
+
+def estimate(current: dict) -> str | None:
+    """Waybar 標準の {timeTo} 相当。放電中は空まで、充電中は満充電までの時間。"""
+    energy, full, power = current["energy"], current["full"], current["power"]
+    if not energy or not power:
+        return None
+    if current["status"] == "discharging":
+        return f"残り {format_duration(energy / power)}"
+    if current["status"] == "charging" and full:
+        return f"満充電まで {format_duration(max(full - energy, 0) / power)}"
+    return None
+
+
+def css_classes(current: dict) -> list[str]:
+    """標準の battery モジュールと同じく、残量と電源の状態を別々のクラスで付ける。"""
+    classes = []
+    capacity = current["capacity"] or 0
+    if capacity <= CRITICAL:
+        classes.append("critical")
+    elif capacity <= WARNING:
+        classes.append("warning")
+    if current["status"] == "charging":
+        classes.append("charging")
+    elif current["ac"]:
+        classes.append("plugged")
+    return classes
+
+
+def render(current: dict, battery_id: str | None) -> dict:
+    now = time.time()
+    start = now - HOURS * 3600
+    capacity = current["capacity"]
+    status = current["status"]
+
+    charges = read_history("charge", battery_id, start)
+    rates = read_history("rate", battery_id, start)
+    # ファイルに未保存の直近分の代わりに現在値を足す。
+    if capacity is not None:
+        charges.append((now, capacity, status))
+    if current["power"] is not None:
+        rates.append((now, current["power"], status))
+
+    summary = f"{capacity:.0f}% {STATUS_LABELS.get(status, status)}" if capacity is not None else "残量不明"
+    if current["power"]:
+        summary += f" {current['power']:.1f} W"
+    lines = [summary]
+    remaining = estimate(current)
+    if remaining:
+        lines.append(remaining)
+    lines = [html.escape(line) for line in lines]
+
+    # 時刻の目盛りを毎正時に揃えるため、グラフの開始を列の境目に丸める。
+    chart_start = local_floor(start, SLOT_SECONDS) + SLOT_SECONDS
+    lines += [SEPARATOR, html.escape(f"残量 (直近{HOURS}時間, 時)")]
+    lines += charge_chart(charge_slots(charges, chart_start), chart_start)
+    lines += [SEPARATOR, *power_lines(rates, now)]
+
+    return {
+        "text": f" {capacity:.0f}%" if capacity is not None else " --%",
+        "tooltip": "\n".join(lines),
+        "class": css_classes(current),
+        "percentage": int(capacity or 0),
+    }
+
+
+def main() -> int:
+    battery = find_battery()
+    if battery is None:
+        print(json.dumps({"text": "", "tooltip": "バッテリーが見つかりません"}, ensure_ascii=False))
+        return 0
+    print(json.dumps(render(read_current(battery), history_id(battery)), ensure_ascii=False))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
