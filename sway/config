@@ -95,7 +95,7 @@ bindsym Shift+$mod+s resize shrink height 20 px
 bindsym $alt+e layout toggle split
 
 ### フロート化 ###
-bindsym $alt+t floating toggle
+bindsym $alt+t exec ~/.config/sway/scripts/floating-toggle.sh
 
 ### フロートへのフォーカス切替 ###
 bindsym $mod+space focus mode_toggle
@@ -217,3 +217,9 @@ for_window [app_id="fcitx"] floating enable, border none
 # クイックメモ（Stickies 代わり）: $alt+n（Toshy 経由だと物理 Win+N）で ~/notes/memo.md を浮動表示/非表示
 for_window [app_id="local.quickmemo"] floating enable, resize set 700 450, move position center, move scratchpad
 bindsym --no-repeat $alt+n exec ~/.config/sway/scripts/quickmemo.sh
+
+# Bottles(Wine)版LINE: Wine はタイルのリサイズ指示を無視し、表示位置とクリック位置がずれるためフローティングにする
+for_window [class="steam_proton"] floating enable
+
+# Bottles版LINEの影用の窓（全ワークスペースに黒枠として残る）を隠し続ける
+exec ~/.config/sway/scripts/line-shadow-hider.py
