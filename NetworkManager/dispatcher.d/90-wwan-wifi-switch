@@ -19,14 +19,14 @@
 #
 # インストール（root 所有・他者書き込み不可でないと NetworkManager に無視される）。
 # dispatcher.d 内のファイルは SELinux で systemd から実行できないので、
-# resume 用に /usr/local/libexec にも同じものを置く:
+# resume 用に /usr/local/sbin にも同じものを置く:
 #   sudo install -m 755 -o root -g root \
 #     ~/.config/NetworkManager/dispatcher.d/90-wwan-wifi-switch \
 #     /etc/NetworkManager/dispatcher.d/
 #   sudo install -m 755 -o root -g root \
 #     ~/.config/NetworkManager/dispatcher.d/90-wwan-wifi-switch \
-#     /usr/local/libexec/wwan-wifi-switch
-#   sudo restorecon /usr/local/libexec/wwan-wifi-switch
+#     /usr/local/sbin/wwan-wifi-switch
+#   sudo restorecon /usr/local/sbin/wwan-wifi-switch
 #   sudo install -m 644 -o root -g root \
 #     ~/.config/NetworkManager/systemd/wwan-wifi-switch-resume.service \
 #     /etc/systemd/system/
