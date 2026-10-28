@@ -1,0 +1,18 @@
+#!/bin/sh
+# Toggle the WWAN radio from Waybar and refresh the custom/wwan module.
+#
+# NetworkManager の dispatcher（90-wwan-wifi-switch）は Wi-Fi の up/down でしか
+# 動かないので、ここで切り替えた状態は次に Wi-Fi が up/down するまで保たれる。
+
+export LC_ALL=C
+
+if [ "$(nmcli radio wwan)" = enabled ]; then
+    nmcli radio wwan off
+else
+    nmcli radio wwan on
+fi
+
+# モデムの有効化・接続には数秒かかるので、少し待ってからもう一度更新する。
+pkill -RTMIN+11 waybar
+sleep 5
+pkill -RTMIN+11 waybar

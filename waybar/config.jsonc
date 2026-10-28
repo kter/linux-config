@@ -52,7 +52,8 @@
         "return-type": "json",
         "interval": 10,
         "signal": 11,
-        "on-click": "pkill -RTMIN+11 waybar"
+        "on-click": "$HOME/.config/waybar/scripts/wwan-toggle",
+        "on-click-right": "pkill -RTMIN+11 waybar"
     },
 
     "backlight": {
