@@ -7,7 +7,7 @@ After=suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate
 
 [Service]
 Type=oneshot
-ExecStart=/etc/NetworkManager/dispatcher.d/90-wwan-wifi-switch resume
+ExecStart=/usr/local/libexec/wwan-wifi-switch resume
 
 [Install]
 WantedBy=suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target

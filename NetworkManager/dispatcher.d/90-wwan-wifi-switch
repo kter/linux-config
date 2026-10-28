@@ -14,12 +14,19 @@
 # その間に WWAN を on にしても復帰後に反映されない。さらに復帰後に Wi-Fi が
 # 再接続できなかった場合は up/down が発生せず、WWAN が無効のまま残る。
 # そのため sleep 中のイベントは無視し、復帰時は wwan-wifi-switch-resume.service
-# から `resume` で呼んで状態を合わせ直す。
+# から `resume` で呼んで状態を合わせ直す。sleep 中かどうかは NetworkManager の
+# State だけでは取りこぼしたため、logind の PreparingForSleep も見る。
 #
-# インストール（root 所有・他者書き込み不可でないと NetworkManager に無視される）:
+# インストール（root 所有・他者書き込み不可でないと NetworkManager に無視される）。
+# dispatcher.d 内のファイルは SELinux で systemd から実行できないので、
+# resume 用に /usr/local/libexec にも同じものを置く:
 #   sudo install -m 755 -o root -g root \
 #     ~/.config/NetworkManager/dispatcher.d/90-wwan-wifi-switch \
 #     /etc/NetworkManager/dispatcher.d/
+#   sudo install -m 755 -o root -g root \
+#     ~/.config/NetworkManager/dispatcher.d/90-wwan-wifi-switch \
+#     /usr/local/libexec/wwan-wifi-switch
+#   sudo restorecon /usr/local/libexec/wwan-wifi-switch
 #   sudo install -m 644 -o root -g root \
 #     ~/.config/NetworkManager/systemd/wwan-wifi-switch-resume.service \
 #     /etc/systemd/system/
@@ -28,15 +35,27 @@
 
 export LC_ALL=C
 
-nm_state() {
-    nmcli -t -f STATE general 2>/dev/null
+asleep() {
+    [ "$(busctl get-property org.freedesktop.login1 /org/freedesktop/login1 \
+        org.freedesktop.login1.Manager PreparingForSleep 2>/dev/null)" = "b true" ] ||
+        [ "$(nmcli -t -f STATE general 2>/dev/null)" = asleep ]
+}
+
+wifi_connected() {
+    nmcli -t -f TYPE,STATE device | grep -qx 'wifi:connected'
 }
 
 case "$1" in
     resume)
         # 復帰直後は NetworkManager がまだ sleep 中のことがあるので起きるまで待つ。
         i=0
-        while [ "$(nm_state)" = asleep ] && [ "$i" -lt 30 ]; do
+        while asleep && [ "$i" -lt 30 ]; do
+            sleep 1
+            i=$((i + 1))
+        done
+        # Wi-Fi の再接続を少し待つ。繋がればモデムを無駄に起こさずに済む。
+        i=0
+        while ! wifi_connected && [ "$i" -lt 30 ]; do
             sleep 1
             i=$((i + 1))
         done
@@ -50,12 +69,12 @@ case "$1" in
                 exit 0;;
         esac
         nmcli -t -f DEVICE,TYPE device | grep -qx "$1:wifi" || exit 0
-        [ "$(nm_state)" = asleep ] && exit 0
+        asleep && exit 0
         event="Wi-Fi state changed ($1 $2)"
         ;;
 esac
 
-if nmcli -t -f TYPE,STATE device | grep -qx 'wifi:connected'; then
+if wifi_connected; then
     want=off
 else
     want=on
