@@ -119,6 +119,7 @@ def build() -> dict[str, Any]:
         text = f"{ICON_SIGNAL} {STATE_LABELS.get(state, state)}"
         css = "disconnected"
 
+    lines.append("クリックで有効/無効を切り替え")
     return {"text": text, "tooltip": "\n".join(lines), "class": css}
 
 

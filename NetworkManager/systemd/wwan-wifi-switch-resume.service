@@ -1,0 +1,13 @@
+# サスペンド復帰後に WWAN 無線の on/off を Wi-Fi の状態に合わせ直す。
+# 詳細とインストール手順は ../dispatcher.d/90-wwan-wifi-switch を参照。
+
+[Unit]
+Description=Re-sync WWAN radio with Wi-Fi state after resume
+After=suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target NetworkManager.service
+
+[Service]
+Type=oneshot
+ExecStart=/etc/NetworkManager/dispatcher.d/90-wwan-wifi-switch resume
+
+[Install]
+WantedBy=suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
