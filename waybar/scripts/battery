@@ -55,7 +55,8 @@ def find_battery() -> Path | None:
 def read_sysfs(path: Path) -> str | None:
     try:
         return path.read_text().strip()
-    except OSError:
+    # 電池の EC が化けたバイト列を返すことがある（model_name が b"\xf8\x06 " になった実例あり）。
+    except (OSError, UnicodeDecodeError):
         return None
 
 
