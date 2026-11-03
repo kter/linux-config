@@ -20,7 +20,6 @@
         "cpu",
         "memory",
         "temperature#cpu",
-        "temperature#gpu",
         "custom/battery",
         "custom/weather",
         "clock",
@@ -135,14 +134,6 @@
         "tooltip-format": "CPU: {temperatureC}°C"
     },
 
-    "temperature#gpu": {
-        "thermal-zone": 2,
-        "critical-threshold": 85,
-        "format": " {temperatureC}°C",
-        "interval": 5,
-        "tooltip-format": "GPU: {temperatureC}°C"
-    },
-
     "custom/battery": {
         "exec": "$HOME/.config/waybar/scripts/battery",
         "return-type": "json",
@@ -161,8 +152,8 @@
 
     "clock": {
         "interval": 1,
-        "format": " {:%H:%M:%S}",
-        "format-alt": " {:%Y-%m-%d %H:%M:%S}",
+        "format": " {:%Y/%m/%d %H:%M:%S}",
+        "format-alt": " {:%Y/%m/%d %H:%M:%S}",
         "tooltip-format": "<tt>{calendar}</tt>"
     },
 
