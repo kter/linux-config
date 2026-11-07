@@ -135,6 +135,8 @@ bindsym $alt+Shift+q kill
 
 ### ターミナルとランチャー ###
 bindsym $mod+Return exec $term
+for_window [app_id="^foot-floating$"] floating enable
+bindsym $mod+Shift+Return exec foot --app-id=foot-floating
 bindsym $mod+slash exec $menu
 
 ### スクリーンショット ###
