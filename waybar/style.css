@@ -169,10 +169,20 @@ window#waybar {
 /* モバイル回線（内蔵 WWAN） */
 #custom-wwan {
     color: #94e2d5;
+    font-family: "Font Awesome 6 Free";
+    font-weight: 900;
 }
 
 #custom-wwan.disconnected {
     color: #6c7086;
+}
+
+#custom-wwan.connecting {
+    color: #f9e2af;
+}
+
+#custom-wwan.error {
+    color: #f38ba8;
 }
 
 /* バッテリー */

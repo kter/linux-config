@@ -18,6 +18,7 @@ TIMEOUT = 5
 
 # Font Awesome 6 Free Solid のグリフ。style.css のフォントスタックに含まれている。
 ICON_SIGNAL = ""
+ICON_ERROR = "\uf071"
 
 STATE_LABELS = {
     "connected": "接続中",
@@ -113,11 +114,17 @@ def build() -> dict[str, Any]:
         break
 
     if state == "connected":
-        text = f"{ICON_SIGNAL} {tech} {signal}%"
+        text = ICON_SIGNAL
         css = "connected"
-    else:
-        text = f"{ICON_SIGNAL} {STATE_LABELS.get(state, state)}"
+    elif state == "disabled":
+        text = ICON_SIGNAL
         css = "disconnected"
+    elif state == "failed":
+        text = ICON_ERROR
+        css = "error"
+    else:
+        text = ICON_SIGNAL
+        css = "connecting" if state in {"connecting", "disconnecting", "searching"} else "disconnected"
 
     lines.append("クリックで有効/無効を切り替え")
     return {"text": text, "tooltip": "\n".join(lines), "class": css}
