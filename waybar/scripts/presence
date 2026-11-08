@@ -1,0 +1,55 @@
+#!/usr/bin/python3
+"""Display and toggle the session's presence-based screen control."""
+
+import fcntl
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+UNIT = "vaio-presence-sway.service"
+
+
+def systemctl(*args):
+    return subprocess.run(
+        ["systemctl", "--user", *args],
+        check=True, capture_output=True, text=True, timeout=15,
+    ).stdout.strip()
+
+
+def main():
+    if sys.argv[1:] == ["toggle"]:
+        # Serialize rapid clicks without changing the unit's enabled state.
+        runtime = Path(os.environ["XDG_RUNTIME_DIR"])
+        with (runtime / "vaio-presence-toggle.lock").open("w") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            state = systemctl("show", UNIT, "--property=ActiveState", "--value")
+            systemctl("stop" if state in {"active", "activating"} else "start", UNIT)
+    elif sys.argv[1:]:
+        raise ValueError("usage: presence [toggle]")
+
+    state = systemctl("show", UNIT, "--property=ActiveState", "--value")
+    if state == "active":
+        label, css, detail = "ON", "enabled", "不在と無操作が30秒続くと消灯"
+    elif state == "inactive":
+        label, css, detail = "OFF", "disabled", "離席による消灯を一時停止中"
+    else:
+        label, css, detail = "!", "error", f"サービス状態: {state}"
+    print(json.dumps({
+        "text": {"enabled": "\uf06e", "disabled": "\uf070", "error": "\uf071"}[css],
+        "class": css,
+        "tooltip": f"離席検知: {label}\n{detail}\nクリックでON/OFF切替\n次回ログイン時はON\n通常の無操作ロック・消灯は引き続き有効",
+    }, ensure_ascii=False))
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (OSError, KeyError, ValueError, subprocess.SubprocessError) as error:
+        print(f"presence: {error}", file=sys.stderr)
+        print(json.dumps({
+            "text": "\uf071", "class": "error",
+            "tooltip": "離席検知サービスの確認・切替に失敗しました",
+        }, ensure_ascii=False))
+        sys.exit(1)

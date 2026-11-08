@@ -15,6 +15,7 @@
         "backlight",
         "pulseaudio",
         "power-profiles-daemon",
+        "custom/presence",
         "custom/claude-quota",
         "custom/codex-quota",
         "cpu",
@@ -80,6 +81,13 @@
         }
     },
 
+    "custom/presence": {
+        "exec": "$HOME/.config/waybar/scripts/presence",
+        "return-type": "json",
+        "interval": 5,
+        "on-click": "$HOME/.config/waybar/scripts/presence toggle"
+    },
+
     "custom/claude-quota": {
         "exec": "$HOME/.config/waybar/scripts/ai-quota --target claude",
         "return-type": "json",
@@ -97,7 +105,7 @@
     },
 
     "cpu": {
-        "interval": 2,
+        "interval": 3,
         "format": " {usage}% {icon0}{icon1}{icon2}{icon3}{icon4}{icon5}{icon6}{icon7}{icon8}{icon9}{icon10}{icon11}{icon12}{icon13}{icon14}{icon15}",
         "format-icons": [
             "<span color='#a6e3a1'>▁</span>",

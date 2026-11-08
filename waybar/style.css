@@ -52,6 +52,7 @@ window#waybar {
 #backlight,
 #pulseaudio,
 #power-profiles-daemon,
+#custom-presence,
 #custom-claude-quota,
 #custom-codex-quota,
 #custom-weather,
@@ -72,6 +73,7 @@ window#waybar {
 #backlight,
 #pulseaudio,
 #power-profiles-daemon,
+#custom-presence,
 #custom-claude-quota,
 #custom-codex-quota,
 #custom-weather,
@@ -92,6 +94,23 @@ window#waybar {
 }
 
 #cpu.critical {
+    color: #f38ba8;
+}
+
+#custom-presence {
+    font-family: "Font Awesome 6 Free";
+    font-weight: 900;
+}
+
+#custom-presence.enabled {
+    color: #a6e3a1;
+}
+
+#custom-presence.disabled {
+    color: #6c7086;
+}
+
+#custom-presence.error {
     color: #f38ba8;
 }
 
