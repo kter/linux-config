@@ -10,6 +10,8 @@ font pango:Noto Sans CJK JP 10
 output eDP-1 mode 1920x1080@60.049Hz position 0 0 scale 1
 output HDMI-A-1 mode 3440x1440@49.987Hz position 1920 0 scale 1
 output DP-4 transform 90
+# Keep the portrait LG HDR 4K rotated even if its connector name changes.
+output "LG Electronics LG HDR 4K 0x0002A68C" transform 90
 
 ### アプリ起動 ###
 bindsym Shift+$mod+m exec mpv "$(wl-paste)"
