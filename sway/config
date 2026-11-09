@@ -228,3 +228,7 @@ for_window [class="steam_proton"] floating enable
 
 # Bottles版LINEの影用の窓（全ワークスペースに黒枠として残る）を隠し続ける
 exec ~/.config/sway/scripts/line-shadow-hider.py
+
+# LINEで日本語に切り替わらない瞬間の fcitx5 状態を記録する（~/.local/state/ime-snapshot.log）
+# Toshy が物理 Win を Alt に変えるので $alt 側に割り当てる（物理 Win+Shift+i）
+bindsym $alt+Shift+i exec ~/.config/sway/scripts/ime-snapshot.sh

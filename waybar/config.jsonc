@@ -37,7 +37,9 @@
     },
 
     "sway/window": {
-        "max-length": 60
+        "max-length": 60,
+        // タイトル更新によるGTK共通のホバー待ち時間への干渉を避ける。
+        "tooltip": false
     },
 
     "network": {
