@@ -107,13 +107,18 @@ def history_id(battery: Path) -> str | None:
 
 
 def history_file(kind: str, battery_id: str | None) -> Path | None:
-    """識別子が分かればその電池のファイルを使い、無ければ最も新しく書かれたものにする。"""
-    if battery_id:
-        path = UPOWER_HISTORY / f"history-{kind}-{battery_id}.dat"
-        if path.exists():
-            return path
+    """同じシリアルの最新履歴を使う。EC の一時的な読み取り不良で識別子は変わり得る。"""
     candidates = list(UPOWER_HISTORY.glob(f"history-{kind}-*.dat"))
     candidates = [path for path in candidates if not path.name.endswith("generic_id.dat")]
+    if battery_id:
+        path = UPOWER_HISTORY / f"history-{kind}-{battery_id}.dat"
+        serial = battery_id.rsplit("-", 1)[-1]
+        related = [
+            candidate for candidate in candidates
+            if candidate == path or candidate.name.endswith(f"-{serial}.dat")
+        ]
+        if related:
+            return max(related, key=lambda candidate: candidate.stat().st_mtime)
     if not candidates:
         return None
     return max(candidates, key=lambda path: path.stat().st_mtime)
@@ -134,9 +139,15 @@ def read_history(kind: str, battery_id: str | None, since: float) -> list[tuple[
         if len(fields) < 3:
             continue
         try:
-            points.append((float(fields[0]), float(fields[1]), fields[2]))
+            moment, value, status = float(fields[0]), float(fields[1]), fields[2]
         except ValueError:
             continue
+        # unknown / 0 は UPower の履歴初期化マーカーで、電池切れの測定値ではない。
+        if status == "unknown" or not math.isfinite(moment) or not math.isfinite(value):
+            continue
+        if kind == "charge" and not 0 <= value <= 100:
+            continue
+        points.append((moment, value, status))
     points.sort()
     before = [point for point in points if point[0] < since]
     return before[-1:] + [point for point in points if point[0] >= since]
@@ -156,7 +167,7 @@ def charge_slots(history: list[tuple[float, float, str]], start: float) -> list[
             index += 1
         # 列の途中で放電に切り替わっても、列の始まりで充電中だったならその色にする。
         charging = last is not None and last[2] == "charging"
-        while index < len(history) and history[index][0] < slot_end:
+        while index < len(history) and history[index][0] <= slot_end:
             last = history[index]
             if last[2] == "charging":
                 charging = True
@@ -246,7 +257,7 @@ def power_lines(history: list[tuple[float, float, str]], now: float) -> list[str
 
     known = [value for value in averages if value is not None]
     scale = max([POWER_SCALE_MIN, *known])
-    lines = [html.escape("消費電力 (時, 1時間平均)")]
+    lines = [html.escape("消費電力 (時, 稼働中の時間平均)")]
     for begin, average, on_ac in zip(starts, averages, charged):
         hour = time.strftime("%H", time.localtime(begin))
         if average is None:
@@ -262,7 +273,7 @@ def power_lines(history: list[tuple[float, float, str]], now: float) -> list[str
     if total_seconds:
         # 時間帯ごとの平均を平均すると短い時間帯が重くなるので、全区間で重み付けし直す。
         lines.append(
-            html.escape(f"放電中の平均 {total_energy / total_seconds:.1f} W / 最大 {max(known):.1f} W")
+            html.escape(f"放電中平均 {total_energy / total_seconds:.1f} W / 時間平均の最大 {max(known):.1f} W")
         )
     return lines
 
@@ -326,6 +337,7 @@ def render(current: dict, battery_id: str | None) -> dict:
     chart_start = local_floor(start, SLOT_SECONDS) + SLOT_SECONDS
     lines += [SEPARATOR, html.escape(f"残量 (直近{HOURS}時間, 時)")]
     lines += charge_chart(charge_slots(charges, chart_start), chart_start)
+    lines.append(html.escape("記録間は直前値 / 青:放電・緑:充電等"))
     lines += [SEPARATOR, *power_lines(rates, now)]
 
     return {
