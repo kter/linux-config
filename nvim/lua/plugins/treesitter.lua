@@ -24,8 +24,12 @@ return {
       highlight = {
         enable = true,
       },
+      -- The pinned pre-rewrite indent module crashes on Nvim 0.12
+      -- (query_predicates.lua: "attempt to call method 'type'"), so indentexpr
+      -- silently returns 0 and `o` lands on column 1. Fall back to the
+      -- runtime indenters (e.g. GetTypescriptIndent) instead.
       indent = {
-        enable = true,
+        enable = false,
       },
     })
   end,
