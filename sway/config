@@ -159,7 +159,7 @@ bindsym XF86AudioMicMute exec wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle
 # remap
 input type:keyboard {
   xkb_layout us
-  xkb_options caps:ctrl_modifier
+  xkb_options caps:ctrl_modifier,ctrl:swap_ralt_rctl
   # キーリピート（既定 600ms / 25回毎秒）: ウインドウ移動を速くするため短く・速く
   repeat_delay 250
   repeat_rate 50
