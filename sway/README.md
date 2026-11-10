@@ -94,11 +94,15 @@ for_window [app_id="fcitx"] floating enable, border none
 ```
 input type:keyboard {
   xkb_layout us
-  xkb_options caps:ctrl_modifier
+  xkb_options caps:ctrl_modifier,ctrl:swap_ralt_rctl
 }
 ```
 
 ※ `xkb_layout` は物理キー配列の設定。日本語IME（fcitx5）とは独立している。
+
+`caps:ctrl_modifier` は Toshy が止まっているときの保険で、Toshy が動いている間は効かない。
+Toshy が物理キーボードを掴み、CapsLock を RIGHT_META に置き換えてから仮想キーボードで送り直すため、
+xkb には CapsLock が届かない。CapsLock を Ctrl として働かせているのは Toshy 側の設定（4.1 節）。
 
 ### 4.1 Toshy 連携
 
@@ -114,11 +118,24 @@ exec_always --no-startup-id systemctl --user restart toshy-wlroots-dbus.service 
 ```
 
 この構成では `Mod4` は変えず、物理 `Win` キーをそのまま `sway` の modifier として維持する。
-`CapsLock -> Ctrl` は維持しつつ、GUI アプリでは `Toshy` 側で
+GUI アプリでは `Toshy` 側で
 物理 `Alt` を使った Mac 風ショートカット（`Alt+C/V/T/W/F...`）を使えるようにしている。
 
-ターミナル（`foot` など）は `Toshy` の変換対象から外しているため、
+CapsLock は `~/.config/toshy/toshy_config.py` の modmap で RIGHT_META になり、
+アプリの種類ごとに次のように振る舞う。
+
+- ターミナル（`term_regex` に一致するアプリ ID）: 「User Terminal CapsLock-as-Ctrl」が
+  `CapsLock+C/D/Z/A/E/...` を `Ctrl+...` に変換する。
+- それ以外の GUI アプリ: 「User Mac-like Cursor Movement」で `CapsLock+A/E/F/B/P/N` がカーソル移動になる。
+  Ctrl には変換されない。
+
+ターミナルは `Toshy` の Mac 風ショートカットの対象から外しているため、
 `Win+C/V` よりもアプリ本来のショートカットを優先する。
+
+アプリ ID が違う端末を追加したら、`term_regex` と `cursor_exclude_regex` にもその ID を足す。
+足さないと GUI アプリとして扱われ、`CapsLock+C` が `Ctrl+C` にならずに Super+C のまま届く。
+`$mod+Shift+Return` で開くフローティング端末（`foot --app-id=foot-floating`）もこれに当たったので、
+`foot-floating` を両方の正規表現と foot 用 Cmd ショートカットの条件（`^foot(-floating)?$`）に加えてある。
 
 `Win+d` は `Toshy` の `Super-d -> Delete` と衝突するため、
 `wofi` ランチャーは `Win+/` に割り当てている。
