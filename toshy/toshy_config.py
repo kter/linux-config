@@ -2372,13 +2372,13 @@ define_modmap({
 # アプリケーション判定用正規表現
 # ---------------------------------------------------------
 # ターミナル：カーソル移動もCommand系もすべて除外（アプリ側で制御）
-term_regex = r"^(foot|gnome-terminal|gnome-shells|konsole|Alacritty|kitty|xfce4-terminal|com\.mitchellh\.ghostty|local\.quickmemo|wezterm)$"
+term_regex = r"^(foot|foot-floating|gnome-terminal|gnome-shells|konsole|Alacritty|kitty|xfce4-terminal|com\.mitchellh\.ghostty|local\.quickmemo|wezterm)$"
 
 # IDE (VSCodeなど)：カーソル移動のみ除外、Command系は有効
 ide_regex = r"^(code|Code|VSCodium|code-oss|antigravity)$"
 
 # カーソル移動から除外するアプリの合体リスト（ターミナル + IDE）
-cursor_exclude_regex = r"^(foot|gnome-terminal|gnome-shells|konsole|Alacritty|kitty|xfce4-terminal|com\.mitchellh\.ghostty|local\.quickmemo|wezterm|code|Code|VSCodium|code-oss|antigravity)$"
+cursor_exclude_regex = r"^(foot|foot-floating|gnome-terminal|gnome-shells|konsole|Alacritty|kitty|xfce4-terminal|com\.mitchellh\.ghostty|local\.quickmemo|wezterm|code|Code|VSCodium|code-oss|antigravity)$"
 
 # ---------------------------------------------------------
 # 2. ショートカットの定義
@@ -2393,7 +2393,7 @@ keymap("User foot Command Shortcuts", {
     K("RC-c"): K("Shift-C-c"),    # Cmd + C -> コピー
     K("RC-v"): K("Shift-C-v"),    # Cmd + V -> 貼り付け
     K("RC-a"): K("Shift-C-a"),    # Cmd + A -> 全文コピー (pipe-scrollback)
-}, when = matchProps(clas=r"^foot$"))
+}, when = matchProps(clas=r"^foot(-floating)?$"))
 
 # A. Command(物理 Win/Super キー)系ショートカット
 # 【ターミナル以外】のすべてのアプリ（VSCode、Chrome、ファイル管理等）で有効
