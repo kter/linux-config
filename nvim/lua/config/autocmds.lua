@@ -53,7 +53,9 @@ vim.api.nvim_create_autocmd("BufEnter", {
       return
     end
 
-    local root = vim.fs.root(bufname, project_root_markers)
+    -- Nested list = equal priority, so the nearest ancestor wins. A flat list
+    -- is searched in priority order, which let ~/package.json beat a nearer go.mod.
+    local root = vim.fs.root(bufname, { project_root_markers })
     if not root or root == "" then
       return
     end
