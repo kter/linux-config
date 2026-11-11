@@ -94,9 +94,14 @@ for_window [app_id="fcitx"] floating enable, border none
 ```
 input type:keyboard {
   xkb_layout us
-  xkb_options caps:ctrl_modifier,ctrl:swap_ralt_rctl
+  xkb_options caps:ctrl_modifier
 }
 ```
+
+右 Alt と右 Ctrl の入れ替え（`ctrl:swap_ralt_rctl`）は xkb ではやらない。xkb に届くのは Toshy の
+仮想キーボードだけなので、入れ替えると Toshy が仮想 Cmd として送る RIGHT_CTRL まで Alt_R になり、
+GUI アプリの Cmd+T などが壊れる。スペース右のキー（物理右 Alt）を Alt_R のまま届けるのは
+Toshy の `multi_lang` 設定の役目（4.1 節）。
 
 ※ `xkb_layout` は物理キー配列の設定。日本語IME（fcitx5）とは独立している。
 
@@ -128,6 +133,11 @@ CapsLock は `~/.config/toshy/toshy_config.py` の modmap で RIGHT_META にな�
   `CapsLock+C/D/Z/A/E/...` を `Ctrl+...` に変換する。
 - それ以外の GUI アプリ: 「User Mac-like Cursor Movement」で `CapsLock+A/E/F/B/P/N` がカーソル移動になる。
   Ctrl には変換されない。
+
+Toshy の設定 `multi_lang` は True にしてある（`toshy_user_preferences.sqlite`、トレイの設定画面からも変えられる）。
+False だと、キーボード種別が Windows の場合に物理右 Alt が RIGHT_CTRL（右 Cmd）に、右 Ctrl が
+RIGHT_META や LEFT_CTRL に置き換わる。True にすると右側の修飾キーはそのまま届くので、
+スペース右のキーが Alt_R を出し、karukan の日本語への切り替えに使える。右 Alt は右 Cmd としては働かない。
 
 ターミナルは `Toshy` の Mac 風ショートカットの対象から外しているため、
 `Win+C/V` よりもアプリ本来のショートカットを優先する。
