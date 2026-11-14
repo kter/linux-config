@@ -13,7 +13,7 @@
         "custom/wifi",
         "custom/wwan",
         "backlight",
-        "pulseaudio",
+        "custom/audio",
         "power-profiles-daemon",
         "custom/presence",
         "custom/claude-quota",
@@ -62,15 +62,16 @@
         "format": " {percent}%",
         "on-scroll-up": "brightnessctl set +2%",
         "on-scroll-down": "brightnessctl set 2%-",
-        "tooltip-format": "<span size=\"x-large\" foreground=\"#cdd6f4\"></span>  <span size=\"large\" weight=\"bold\" foreground=\"#cdd6f4\">Display</span>\n<span font_family=\"monospace\" size=\"small\" letter_spacing=\"2048\" foreground=\"#a6e3a1\">BRIGHTNESS</span>\n\n<span font_family=\"monospace\"><span foreground=\"#7f849c\">Brightness </span><span foreground=\"#cdd6f4\">{percent}%</span></span>\n<span font_family=\"monospace\"><span foreground=\"#45475a\">────────────────────────</span></span>\n<span foreground=\"#7f849c\">スクロールで調整</span>"
+        "tooltip-format": "輝度: {percent}%\nスクロールで調整"
     },
 
-    "pulseaudio": {
-        "format": " {volume}%",
-        "format-muted": " mute",
-        "scroll-step": 5,
+    "custom/audio": {
+        // 常駐して pactl subscribe の通知ごとに1行出す（interval なし）。
+        "exec": "$HOME/.config/waybar/scripts/audio",
+        "return-type": "json",
         "on-click": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
-        "tooltip-format": "<span size=\"x-large\" foreground=\"#cdd6f4\"></span>  <span size=\"large\" weight=\"bold\" foreground=\"#cdd6f4\">{desc}</span>\n<span font_family=\"monospace\" size=\"small\" letter_spacing=\"2048\" foreground=\"#a6e3a1\">AUDIO OUT</span>\n\n<span font_family=\"monospace\"><span foreground=\"#7f849c\">Volume     </span><span foreground=\"#cdd6f4\">{volume}%</span></span>\n<span font_family=\"monospace\"><span foreground=\"#7f849c\">Mic        </span><span foreground=\"#cdd6f4\">{source_volume}%</span></span>\n<span font_family=\"monospace\"><span foreground=\"#7f849c\">Mic Device </span><span foreground=\"#cdd6f4\">{source_desc}</span></span>\n<span font_family=\"monospace\"><span foreground=\"#45475a\">────────────────────────────────</span></span>\n<span foreground=\"#7f849c\">クリックでミュート / スクロールで音量</span>"
+        "on-scroll-up": "wpctl set-volume -l 1.5 @DEFAULT_AUDIO_SINK@ 5%+",
+        "on-scroll-down": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"
     },
 
     "power-profiles-daemon": {

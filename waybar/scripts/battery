@@ -123,9 +123,9 @@ def history_file(kind: str, battery_id: str | None) -> Path | None:
         ]
         if related:
             return max(related, key=lambda candidate: candidate.stat().st_mtime)
-    if not candidates:
-        return None
-    return max(candidates, key=lambda path: path.stat().st_mtime)
+    # 識別できない、または一致する履歴がない場合は出さない。最新の履歴を拾うと
+    # マウスなど別の機器の残量を内蔵バッテリーとして描いてしまう。
+    return None
 
 
 def read_history(kind: str, battery_id: str | None, since: float) -> list[tuple[float, float, str]]:
@@ -291,10 +291,11 @@ def format_duration(hours: float) -> str:
 def css_classes(current: dict) -> list[str]:
     """標準の battery モジュールと同じく、残量と電源の状態を別々のクラスで付ける。"""
     classes = []
-    capacity = current["capacity"] or 0
-    if capacity <= CRITICAL:
+    capacity = current["capacity"]
+    # 読み取りに失敗した残量は 0% ではなく不明として扱い、警告にしない。
+    if capacity is not None and capacity <= CRITICAL:
         classes.append("critical")
-    elif capacity <= WARNING:
+    elif capacity is not None and capacity <= WARNING:
         classes.append("warning")
     if current["status"] == "charging":
         classes.append("charging")
@@ -359,9 +360,9 @@ def render(current: dict, battery_id: str | None) -> dict:
         rates.append((now, current["power"], status))
 
     level = capacity or 0
-    accent = (
-        tooltip.CRITICAL if level <= CRITICAL else tooltip.WARN if level <= WARNING else tooltip.ACCENT
-    )
+    accent = tooltip.ACCENT
+    if capacity is not None:
+        accent = tooltip.CRITICAL if level <= CRITICAL else tooltip.WARN if level <= WARNING else accent
     rows = summary_rows(current)
     title = f"Battery {capacity:.0f}%" if capacity is not None else "Battery"
 

@@ -50,7 +50,7 @@ window#waybar {
 #custom-wifi,
 #custom-wwan,
 #backlight,
-#pulseaudio,
+#custom-audio,
 #power-profiles-daemon,
 #custom-presence,
 #custom-claude-quota,
@@ -71,7 +71,7 @@ window#waybar {
 #custom-wifi,
 #custom-wwan,
 #backlight,
-#pulseaudio,
+#custom-audio,
 #power-profiles-daemon,
 #custom-presence,
 #custom-claude-quota,
@@ -218,7 +218,7 @@ window#waybar {
 }
 
 /* 音量 */
-#pulseaudio {
+#custom-audio {
     color: #fab387;
 }
 

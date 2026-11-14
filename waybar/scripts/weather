@@ -17,6 +17,7 @@ import json
 import math
 import os
 import sys
+import tempfile
 import time
 import urllib.error
 import urllib.parse
@@ -39,8 +40,8 @@ TIMEOUT = 8
 USER_AGENT = "waybar-weather/1.0"
 
 # 周辺の Wi-Fi AP は BeaconDB に未登録で測位できなかったため、IP 測位のみを使う。
-# ip-api.com は都市名まで返すので第一候補。無料枠は HTTP のみ。
-IPAPI_URL = "http://ip-api.com/json/?fields=status,message,city,regionName,lat,lon"
+# 改ざんされた座標を受け入れないよう、HTTPS で都市名まで返す ipinfo.io を第一候補にする。
+IPINFO_URL = "https://ipinfo.io/json"
 # 座標だけで良い場合のフォールバック（HTTPS）。
 BEACONDB_URL = "https://api.beacondb.net/v1/geolocate"
 
@@ -149,12 +150,14 @@ def read_cache(name: str) -> dict[str, Any] | None:
 def write_cache(name: str, payload: dict[str, Any]) -> None:
     directory = cache_dir()
     path = directory / name
-    temp = path.with_suffix(".tmp")
     try:
         directory.mkdir(parents=True, exist_ok=True)
-        with temp.open("w", encoding="utf-8") as sink:
+        # 同時に走った別プロセスと一時ファイルを共有しないよう、固有名で書いてから置き換える。
+        with tempfile.NamedTemporaryFile(
+            "w", encoding="utf-8", dir=directory, prefix=f".{name}.", delete=False
+        ) as sink:
             json.dump(payload, sink, ensure_ascii=False)
-        temp.replace(path)
+        os.replace(sink.name, path)
     except OSError:
         # キャッシュが書けなくても表示自体は続行する。
         pass
@@ -180,15 +183,14 @@ def fetch_json(url: str, data: bytes | None = None) -> dict[str, Any]:
 
 
 def locate_by_ip() -> dict[str, Any]:
-    payload = fetch_json(IPAPI_URL)
-    if payload.get("status") != "success":
-        raise WeatherError(str(payload.get("message") or "IP 測位に失敗"))
+    payload = fetch_json(IPINFO_URL)
     try:
-        lat = float(payload["lat"])
-        lon = float(payload["lon"])
+        lat_text, lon_text = str(payload["loc"]).split(",", 1)
+        lat = float(lat_text)
+        lon = float(lon_text)
     except (KeyError, TypeError, ValueError) as error:
         raise WeatherError("IP 測位の座標が不正です") from error
-    place = payload.get("city") or payload.get("regionName") or ""
+    place = payload.get("city") or payload.get("region") or ""
     return {"lat": lat, "lon": lon, "place": str(place), "fetched_at": time.time()}
 
 

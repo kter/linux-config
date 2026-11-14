@@ -1,0 +1,152 @@
+#!/usr/bin/env python3
+"""Stream default audio output/input status to Waybar, one JSON line per change.
+
+Waybar 0.15 の pulseaudio モジュールでは装飾付きツールチップが崩れたため、
+置き換えとしてこのスクリプトを常駐させる。`pactl subscribe` の通知を受けて
+出し直すので、音量キーやスクロールでの変更もすぐ反映される。
+
+pactl の JSON 出力は日本語のデバイス名で壊れるため、音量と名前は wpctl、
+再生中のストリームは pw-dump から読む。デバイス名などはすべてエスケープする。
+"""
+
+from __future__ import annotations
+
+import json
+import re
+import select
+import subprocess
+import sys
+import time
+
+import tooltip
+
+ICON_HIGH = ""
+ICON_LOW = ""
+ICON_OFF = ""
+ICON_MUTE = ""
+DEBOUNCE = 0.15
+# pactl subscribe が落ちた場合に備えた定期的な出し直し間隔。
+REFRESH = 30
+
+
+def run(*cmd: str) -> str:
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=3).stdout
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+def volume(target: str) -> tuple[int | None, bool]:
+    out = run("wpctl", "get-volume", target)
+    m = re.search(r"Volume: ([\d.]+)", out)
+    return (round(float(m.group(1)) * 100) if m else None), "[MUTED]" in out
+
+
+def description(target: str) -> str:
+    out = run("wpctl", "inspect", target)
+    for key in ("node.description", "node.nick", "node.name"):
+        m = re.search(rf'{re.escape(key)} = "(.*)"', out)
+        if m:
+            return m.group(1)
+    return "--"
+
+
+def streams() -> list[str]:
+    """Applications currently playing audio (not paused/corked)."""
+    try:
+        objects = json.loads(run("pw-dump") or "[]")
+    except json.JSONDecodeError:
+        return []
+    names = []
+    for obj in objects:
+        info = obj.get("info") or {}
+        props = info.get("props") or {}
+        if props.get("media.class") != "Stream/Output/Audio" or info.get("state") != "running":
+            continue
+        app = props.get("application.name") or props.get("node.name") or "?"
+        media = props.get("media.name")
+        names.append(f"{app} — {media}" if media and media != app else app)
+    return names
+
+
+def build() -> dict:
+    vol, muted = volume("@DEFAULT_AUDIO_SINK@")
+    mic, mic_muted = volume("@DEFAULT_AUDIO_SOURCE@")
+    sink = description("@DEFAULT_AUDIO_SINK@")
+    source = description("@DEFAULT_AUDIO_SOURCE@")
+    playing = streams()
+
+    if muted:
+        icon, text, subtitle = ICON_MUTE, " mute", "muted"
+    else:
+        level = vol or 0
+        icon = ICON_HIGH if level >= 50 else ICON_LOW if level > 0 else ICON_OFF
+        text = f" {vol}%" if vol is not None else " --%"
+        subtitle = "playing" if playing else "audio out"
+
+    rows = [
+        [("Volume", "mute" if muted else f"{vol}%" if vol is not None else "--"),
+         ("Mic", "mute" if mic_muted else f"{mic}%" if mic is not None else "--")],
+    ]
+    size = max(tooltip.grid_width(rows), 32)
+    colors = {"Volume": tooltip.WARN} if muted else {}
+    blocks = [
+        tooltip.header(icon, sink, subtitle, tooltip.WARN if muted else tooltip.ACCENT),
+        tooltip.grid(rows, colors),
+        tooltip.meter((vol or 0) / 100, size, tooltip.LABEL if muted else tooltip.ACCENT),
+        "",
+        tooltip.section("input"),
+        tooltip.notes(source),
+    ]
+    if playing:
+        blocks += ["", tooltip.section("now playing"), tooltip.notes(*playing[:5])]
+    blocks += [tooltip.rule(size), tooltip.notes("クリックでミュート / スクロールで音量")]
+    return {
+        "text": text,
+        "tooltip": tooltip.join(*blocks),
+        "class": "muted" if muted else "",
+        "percentage": vol or 0,
+    }
+
+
+def emit() -> None:
+    sys.stdout.write(json.dumps(build(), ensure_ascii=False) + "\n")
+    sys.stdout.flush()
+
+
+def main() -> int:
+    emit()
+    while True:
+        try:
+            proc = subprocess.Popen(
+                ["pactl", "subscribe"], stdout=subprocess.PIPE, text=True, bufsize=1
+            )
+        except OSError:
+            time.sleep(REFRESH)
+            emit()
+            continue
+        while True:
+            ready, _, _ = select.select([proc.stdout], [], [], REFRESH)
+            if not ready:
+                emit()
+                continue
+            line = proc.stdout.readline()
+            if not line:
+                break  # pactl exited (e.g. PipeWire restart); resubscribe.
+            if not any(kind in line for kind in ("sink", "source", "server")):
+                continue
+            # 音量変更は通知が連続するので、少し待ってまとめて1回だけ出す。
+            while select.select([proc.stdout], [], [], DEBOUNCE)[0]:
+                if not proc.stdout.readline():
+                    break
+            emit()
+        proc.wait()
+        time.sleep(1)
+        emit()
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except (KeyboardInterrupt, BrokenPipeError):
+        sys.exit(0)
