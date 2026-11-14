@@ -8,7 +8,6 @@ $XDG_RUNTIME_DIR に保存する。初回は速度が "--" になる。
 
 from __future__ import annotations
 
-import html
 import json
 import os
 import re
@@ -17,17 +16,11 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+import tooltip
+
 PING_TARGET = "1.1.1.1"
 PING_COUNT = 3
 
-LABEL = "#7f849c"
-VALUE = "#cdd6f4"
-ACCENT = "#a6e3a1"
-RULE = "#45475a"
-
-LABEL_WIDTH = 12
-VALUE_WIDTH = 15
-GUTTER = "   "
 
 
 @dataclass
@@ -45,7 +38,9 @@ class Stats:
 def _run(*cmd: str, timeout: float = 3) -> str | None:
     try:
         return subprocess.run(
-            cmd, capture_output=True, text=True, timeout=timeout, check=False
+            cmd, capture_output=True, text=True, timeout=timeout, check=False,
+            # ping の集計行を英語で解析するため、ロケールを固定する。
+            env={**os.environ, "LC_ALL": "C"},
         ).stdout
     except (OSError, subprocess.SubprocessError):
         return None
@@ -109,17 +104,8 @@ def ping(ifname: str) -> tuple[float | None, float | None]:
 
 def rates(ifname: str, rx: int, tx: int, now: float | None = None) -> tuple[float | None, float | None]:
     now = time.time() if now is None else now
-    runtime = Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp"))
-    state = runtime / f"waybar-netinfo-{ifname}.json"
-    prev = None
-    try:
-        prev = json.loads(state.read_text())
-    except (OSError, json.JSONDecodeError):
-        pass
-    try:
-        state.write_text(json.dumps({"t": now, "rx": rx, "tx": tx}))
-    except OSError:
-        pass
+    state = tooltip.state_file(f"waybar-netinfo-{ifname}.json")
+    prev = tooltip.swap_state(state, {"t": now, "rx": rx, "tx": tx}) if state else None
     if not prev:
         return None, None
     dt = now - prev.get("t", now)
@@ -166,38 +152,26 @@ def activity(stats: Stats) -> str:
     return "IDLE"
 
 
-def stat_rows(stats: Stats) -> list[tuple[str, str, str, str]]:
+def stat_rows(stats: Stats) -> list[list[tooltip.Cell]]:
     def fmt(value, spec):
         return "--" if value is None else spec.format(value)
 
     return [
-        ("Ping", fmt(stats.ping_ms, "{:.0f} ms"), "Packet Loss", fmt(stats.loss_pct, "{:.0f}%")),
-        ("Receiving", human_bytes(stats.rx_rate, "/s"), "Sending", human_bytes(stats.tx_rate, "/s")),
-        ("Downloaded", human_bytes(stats.rx_total), "Uploaded", human_bytes(stats.tx_total)),
-        ("IP Address", stats.ipv4 or "--", "Gateway", stats.gateway or "--"),
+        [("Ping", fmt(stats.ping_ms, "{:.0f} ms")), ("Packet Loss", fmt(stats.loss_pct, "{:.0f}%"))],
+        [("Receiving", human_bytes(stats.rx_rate, "/s")), ("Sending", human_bytes(stats.tx_rate, "/s"))],
+        [("Downloaded", human_bytes(stats.rx_total)), ("Uploaded", human_bytes(stats.tx_total))],
+        [("IP Address", stats.ipv4 or "--"), ("Gateway", stats.gateway or "--")],
     ]
 
 
-def _cell(label: str, value: str) -> str:
-    return (
-        f'<span foreground="{LABEL}">{html.escape(label.ljust(LABEL_WIDTH))}</span>'
-        f'<span foreground="{VALUE}">{html.escape(value.rjust(VALUE_WIDTH))}</span>'
+def render(icon: str, title: str, subtitle: str, rows: list[list[tooltip.Cell]],
+           footer: list[str] | None = None, stats: Stats | None = None) -> str:
+    colors = {}
+    if stats and stats.loss_pct:
+        colors["Packet Loss"] = tooltip.level_color(stats.loss_pct, 1, 10)
+    return tooltip.join(
+        tooltip.header(icon, title, subtitle),
+        tooltip.grid(rows, colors),
+        tooltip.rule(tooltip.grid_width(rows)),
+        tooltip.notes(*footer) if footer else None,
     )
-
-
-def render(icon: str, title: str, subtitle: str, rows: list[tuple[str, str, str, str]],
-           footer: list[str] | None = None) -> str:
-    width = 2 * (LABEL_WIDTH + VALUE_WIDTH) + len(GUTTER)
-    lines = [
-        f'<span size="x-large" foreground="{VALUE}">{html.escape(icon)}</span>  '
-        f'<span size="large" weight="bold" foreground="{VALUE}">{html.escape(title)}</span>',
-        f'<span font_family="monospace" size="small" letter_spacing="2048" '
-        f'foreground="{ACCENT}">{html.escape(subtitle)}</span>',
-        "",
-    ]
-    body = [_cell(a, b) + GUTTER + _cell(c, d) for a, b, c, d in rows]
-    body.append(f'<span foreground="{RULE}">{"─" * width}</span>')
-    for line in footer or []:
-        body.append(f'<span foreground="{LABEL}">{html.escape(line)}</span>')
-    lines.append('<span font_family="monospace">' + "\n".join(body) + "</span>")
-    return "\n".join(lines)

@@ -16,6 +16,8 @@ import sys
 import time
 from pathlib import Path
 
+import tooltip
+
 POWER_SUPPLY = Path("/sys/class/power_supply")
 UPOWER_HISTORY = Path("/var/lib/upower")
 
@@ -36,7 +38,6 @@ RATE_HOLD_MAX = 5 * 60
 DISCHARGE_COLOR = "#89b4fa"
 CHARGE_COLOR = "#a6e3a1"
 BASELINE_COLOR = "#6c7086"
-SEPARATOR = "─" * 16
 
 STATUS_LABELS = {
     "charging": "充電中",
@@ -84,6 +85,7 @@ def read_current(battery: Path) -> dict:
         status = "pending-charge"
     energy = read_number(battery / "energy_now")
     full = read_number(battery / "energy_full")
+    design = read_number(battery / "energy_full_design")
     power = read_number(battery / "power_now")
     return {
         "capacity": read_number(battery / "capacity"),
@@ -92,6 +94,8 @@ def read_current(battery: Path) -> dict:
         "energy": energy / 1e6 if energy is not None else None,
         "full": full / 1e6 if full is not None else None,
         "power": power / 1e6 if power is not None else None,
+        "design": design / 1e6 if design is not None else None,
+        "cycles": read_number(battery / "cycle_count"),
         "ac": ac_online(),
     }
 
@@ -119,9 +123,9 @@ def history_file(kind: str, battery_id: str | None) -> Path | None:
         ]
         if related:
             return max(related, key=lambda candidate: candidate.stat().st_mtime)
-    if not candidates:
-        return None
-    return max(candidates, key=lambda path: path.stat().st_mtime)
+    # 識別できない、または一致する履歴がない場合は出さない。最新の履歴を拾うと
+    # マウスなど別の機器の残量を内蔵バッテリーとして描いてしまう。
+    return None
 
 
 def read_history(kind: str, battery_id: str | None, since: float) -> list[tuple[float, float, str]]:
@@ -257,7 +261,7 @@ def power_lines(history: list[tuple[float, float, str]], now: float) -> list[str
 
     known = [value for value in averages if value is not None]
     scale = max([POWER_SCALE_MIN, *known])
-    lines = [html.escape("消費電力 (時, 稼働中の時間平均)")]
+    lines = []
     for begin, average, on_ac in zip(starts, averages, charged):
         hour = time.strftime("%H", time.localtime(begin))
         if average is None:
@@ -283,31 +287,62 @@ def format_duration(hours: float) -> str:
     return f"{minutes // 60}時間{minutes % 60:02d}分"
 
 
-def estimate(current: dict) -> str | None:
-    """Waybar 標準の {timeTo} 相当。放電中は空まで、充電中は満充電までの時間。"""
-    energy, full, power = current["energy"], current["full"], current["power"]
-    if not energy or not power:
-        return None
-    if current["status"] == "discharging":
-        return f"残り {format_duration(energy / power)}"
-    if current["status"] == "charging" and full:
-        return f"満充電まで {format_duration(max(full - energy, 0) / power)}"
-    return None
-
 
 def css_classes(current: dict) -> list[str]:
     """標準の battery モジュールと同じく、残量と電源の状態を別々のクラスで付ける。"""
     classes = []
-    capacity = current["capacity"] or 0
-    if capacity <= CRITICAL:
+    capacity = current["capacity"]
+    # 読み取りに失敗した残量は 0% ではなく不明として扱い、警告にしない。
+    if capacity is not None and capacity <= CRITICAL:
         classes.append("critical")
-    elif capacity <= WARNING:
+    elif capacity is not None and capacity <= WARNING:
         classes.append("warning")
     if current["status"] == "charging":
         classes.append("charging")
     elif current["ac"]:
         classes.append("plugged")
     return classes
+
+
+ICON_BOLT = "\uf0e7"
+ICON_PLUG = "\uf1e6"
+ICON_LEVELS = ["\uf244", "\uf243", "\uf242", "\uf241", "\uf240"]
+STATUS_SUBTITLES = {
+    "charging": "charging",
+    "discharging": "on battery",
+    "fully-charged": "fully charged",
+    "pending-charge": "plugged in, holding",
+    "pending-discharge": "plugged in",
+}
+
+
+def header_icon(current: dict) -> str:
+    if current["status"] == "charging":
+        return ICON_BOLT
+    if current["ac"]:
+        return ICON_PLUG
+    capacity = current["capacity"] or 0
+    return ICON_LEVELS[min(4, int(capacity / 20 + 0.5))]
+
+
+def summary_rows(current: dict) -> list[list[tooltip.Cell]]:
+    energy, full, design, power = current["energy"], current["full"], current["design"], current["power"]
+    remaining = "--"
+    if energy and power:
+        if current["status"] == "discharging":
+            remaining = format_duration(energy / power)
+        elif current["status"] == "charging" and full:
+            remaining = format_duration(max(full - energy, 0) / power)
+    health = f"{full / design * 100:.0f}%" if full and design else "--"
+    cycles = f"{current['cycles']:.0f}" if current["cycles"] is not None else "--"
+    return [
+        [("Status", STATUS_LABELS.get(current["status"], current["status"])),
+         ("Power", f"{power:.1f} W" if power else "--")],
+        [("Energy", f"{energy:.1f} Wh" if energy is not None else "--"),
+         ("To Full" if current["status"] == "charging" else "Time Left", remaining)],
+        [("Capacity", f"{full:.1f} Wh" if full is not None else "--"), ("Health", health)],
+        [("Cycles", cycles), ("AC", "接続" if current["ac"] else "未接続")],
+    ]
 
 
 def render(current: dict, battery_id: str | None) -> dict:
@@ -324,25 +359,31 @@ def render(current: dict, battery_id: str | None) -> dict:
     if current["power"] is not None:
         rates.append((now, current["power"], status))
 
-    summary = f"{capacity:.0f}% {STATUS_LABELS.get(status, status)}" if capacity is not None else "残量不明"
-    if current["power"]:
-        summary += f" {current['power']:.1f} W"
-    lines = [summary]
-    remaining = estimate(current)
-    if remaining:
-        lines.append(remaining)
-    lines = [html.escape(line) for line in lines]
+    level = capacity or 0
+    accent = tooltip.ACCENT
+    if capacity is not None:
+        accent = tooltip.CRITICAL if level <= CRITICAL else tooltip.WARN if level <= WARNING else accent
+    rows = summary_rows(current)
+    title = f"Battery {capacity:.0f}%" if capacity is not None else "Battery"
 
     # 時刻の目盛りを毎正時に揃えるため、グラフの開始を列の境目に丸める。
     chart_start = local_floor(start, SLOT_SECONDS) + SLOT_SECONDS
-    lines += [SEPARATOR, html.escape(f"残量 (直近{HOURS}時間, 時)")]
-    lines += charge_chart(charge_slots(charges, chart_start), chart_start)
-    lines.append(html.escape("記録間は直前値 / 青:放電・緑:充電等"))
-    lines += [SEPARATOR, *power_lines(rates, now)]
+    tip = tooltip.join(
+        tooltip.header(header_icon(current), title, STATUS_SUBTITLES.get(status, status), accent),
+        tooltip.grid(rows),
+        tooltip.meter(level / 100, tooltip.grid_width(rows), accent),
+        "",
+        tooltip.section(f"charge · last {HOURS}h"),
+        *charge_chart(charge_slots(charges, chart_start), chart_start),
+        tooltip.notes("記録間は直前値 / 青:放電・緑:充電等"),
+        "",
+        tooltip.section("power draw · hourly avg"),
+        *power_lines(rates, now),
+    )
 
     return {
         "text": f" {capacity:.0f}%" if capacity is not None else " --%",
-        "tooltip": "\n".join(lines),
+        "tooltip": tip,
         "class": css_classes(current),
         "percentage": int(capacity or 0),
     }

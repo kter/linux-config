@@ -68,19 +68,20 @@ def build() -> dict:
         dbm = link.get("dbm")
         pct = signal_percent(dbm) if dbm is not None else 0
         bitrate = link.get("rx_bitrate")
-        rows.append((
-            "Signal", f"{dbm} dBm" if dbm is not None else "--",
-            "Band", band(link.get("freq")),
-        ))
-        rows.append((
-            "Link", f"{bitrate:.0f} Mb/s" if bitrate else "--",
-            "Interface", ifname,
-        ))
-        tooltip = netinfo.render(ICON_WIFI, link.get("ssid", ifname), netinfo.activity(stats), rows)
+        rows.append([
+            ("Signal", f"{dbm} dBm" if dbm is not None else "--"),
+            ("Band", band(link.get("freq"))),
+        ])
+        rows.append([
+            ("Link", f"{bitrate:.0f} Mb/s" if bitrate else "--"),
+            ("Interface", ifname),
+        ])
+        tooltip = netinfo.render(
+            ICON_WIFI, link.get("ssid", ifname), netinfo.activity(stats), rows, stats=stats)
         return {"text": f"{ICON_WIFI} {pct}%", "tooltip": tooltip, "class": "wifi", "percentage": pct}
 
-    rows.append(("Interface", ifname, "", ""))
-    tooltip = netinfo.render(ICON_ETHERNET, "Wired", netinfo.activity(stats), rows)
+    rows.append([("Interface", ifname)])
+    tooltip = netinfo.render(ICON_ETHERNET, "Wired", netinfo.activity(stats), rows, stats=stats)
     return {"text": f"{ICON_ETHERNET} {stats.ipv4 or ifname}", "tooltip": tooltip, "class": "ethernet"}
 
 

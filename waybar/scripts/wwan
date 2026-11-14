@@ -92,10 +92,11 @@ def build() -> dict[str, Any]:
         stats = netinfo.Stats()
         subtitle = STATE_LABELS.get(state, state).upper()
     rows = netinfo.stat_rows(stats)
-    rows.append(("Signal", f"{signal}%", "APN", apn))
+    rows.append([("Signal", f"{signal}%"), ("APN", apn)])
     tooltip = netinfo.render(
         ICON_SIGNAL, f"{operator} ({tech})" if operator != "--" else "5G Modem", subtitle, rows,
         footer=[f"状態: {STATE_LABELS.get(state, state)}", "クリックで有効/無効を切り替え"],
+        stats=stats,
     )
 
     if state == "connected":

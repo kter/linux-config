@@ -3,22 +3,26 @@
 
 import argparse
 import datetime as dt
-import html
 import json
 import os
 import shutil
 import subprocess
 import sys
 import threading
+import tempfile
 import time
 import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import Any
 
+import tooltip
+
 
 CACHE_MAX_AGE = 30 * 60
 CODEX_PRIMARY_WINDOW = 5 * 60 * 60
+# rollout ログの末尾からこのバイト数だけ読んで最新の rate_limits を探す。
+ROLLOUT_TAIL_BYTES = 256 * 1024
 
 
 class QuotaError(Exception):
@@ -182,18 +186,32 @@ def last_rate_limits(path: Path) -> dict[str, Any]:
                     found = nested
         return found
 
+    def scan(lines) -> dict[str, Any] | None:
+        found = None
+        for line in lines:
+            if '"rate_limits"' not in line:
+                continue
+            try:
+                parsed = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            candidate = find_rate_limits(parsed)
+            if isinstance(candidate, dict):
+                found = candidate
+        return found
+
     try:
-        with path.open(encoding="utf-8", errors="replace") as source:
-            for line in source:
-                if '"rate_limits"' not in line:
-                    continue
-                try:
-                    parsed = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                candidate = find_rate_limits(parsed)
-                if isinstance(candidate, dict):
-                    latest = candidate
+        # 最新の値は末尾にあるので、まず末尾だけを読む。見つからなければ全体を読む。
+        with path.open("rb") as source:
+            size = source.seek(0, os.SEEK_END)
+            source.seek(max(0, size - ROLLOUT_TAIL_BYTES))
+            tail = source.read().decode("utf-8", errors="replace").splitlines()
+        if size > ROLLOUT_TAIL_BYTES:
+            tail = tail[1:]  # 途中から読んだ先頭行は欠けている。
+        latest = scan(tail)
+        if latest is None and size > ROLLOUT_TAIL_BYTES:
+            with path.open(encoding="utf-8", errors="replace") as source:
+                latest = scan(source)
     except OSError as error:
         raise QuotaError("Codex の rollout ファイルを読めません") from error
     if latest is None:
@@ -322,10 +340,12 @@ def save_cache(target: str, data: dict[str, Any]) -> None:
     path = cache_path(target)
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = path.with_suffix(".tmp")
-        with temporary.open("w", encoding="utf-8") as destination:
+        # 同時に走った別プロセスと一時ファイルを共有しないよう、固有名で書いてから置き換える。
+        with tempfile.NamedTemporaryFile(
+            "w", encoding="utf-8", dir=path.parent, prefix=f".{path.name}.", delete=False
+        ) as destination:
             json.dump(data, destination, ensure_ascii=False)
-        temporary.replace(path)
+        os.replace(destination.name, path)
     except OSError:
         pass
 
@@ -380,12 +400,26 @@ def local_reset_text(reset_at: float) -> str:
     return local.strftime("%m/%d %H:%M")
 
 
-def quota_line(label: str, quota: dict[str, Any], unknown: bool = False) -> str:
+ICON_QUOTA = "\uf3fd"
+TITLES = {"claude": "Claude Code", "codex": "Codex"}
+
+
+def reset_text(quota: dict[str, Any], unknown: bool = False) -> str:
     reset_at = float(quota["resets_at"])
-    used = "--%" if unknown else usage_text(quota.get("used"))
     if unknown:
-        return f"{label}:  {used}  (データが5時間以上前 / {local_reset_text(reset_at)})"
-    return f"{label}:  {used}  ({remaining_text(reset_at)} / {local_reset_text(reset_at)})"
+        return f"不明 ({local_reset_text(reset_at)})"
+    return f"{remaining_text(reset_at)} ({local_reset_text(reset_at)})"
+
+
+def meter_line(label: str, quota: dict[str, Any], unknown: bool, size: int) -> str:
+    try:
+        used = 0.0 if unknown else float(quota.get("used"))
+    except (TypeError, ValueError):
+        used = 0.0
+    color = tooltip.level_color(used, 70, 90)
+    if color == tooltip.VALUE:
+        color = tooltip.ACCENT
+    return tooltip.mono(f'<span foreground="{tooltip.LABEL}">{label} </span>') + tooltip.meter(used / 100, size, color)
 
 
 def output_for(target: str, data: dict[str, Any], cache_age: float | None = None) -> dict[str, str]:
@@ -395,27 +429,53 @@ def output_for(target: str, data: dict[str, Any], cache_age: float | None = None
     primary_unknown = target == "codex" and (
         source_age > CODEX_PRIMARY_WINDOW or float(five["resets_at"]) < time.time()
     )
-    values = [float(seven["used"])]
+    # 週間枠も、記録後にリセットを過ぎていれば記録の使用率はもう当てにならない。
+    weekly_unknown = target == "codex" and float(seven["resets_at"]) < time.time()
+    values = [0.0]
+    if not weekly_unknown:
+        values.append(float(seven["used"]))
     if not primary_unknown:
         values.append(float(five["used"]))
     highest = max(values)
     state = "critical" if highest >= 90 else "warning" if highest >= 70 else ""
     prefix = "CC" if target == "claude" else "CX"
     five_text = "--%" if primary_unknown else usage_text(five.get("used"))
-    tooltip = ["Claude Code" if target == "claude" else "Codex"]
-    tooltip.append(quota_line("5h", five, primary_unknown))
-    tooltip.append(quota_line("7d", seven))
+    seven_text = "--%" if weekly_unknown else usage_text(seven.get("used"))
+
+    rows = [
+        [("5h", five_text), ("Reset", reset_text(five, primary_unknown))],
+        [("7d", seven_text), ("Reset", reset_text(seven, weekly_unknown))],
+    ]
+    subtitle = {"critical": "nearly out", "warning": "running low"}.get(state, "plenty left")
+    accent = {"critical": tooltip.CRITICAL, "warning": tooltip.WARN}.get(state, tooltip.ACCENT)
+    size = tooltip.grid_width(rows) - 3
+    notes = []
+    if primary_unknown:
+        notes.append("5h はデータが5時間以上前のため不明")
+    if weekly_unknown:
+        notes.append("7d は記録後にリセットされたため不明")
     if target == "codex":
-        tooltip.append(f"データ取得: {elapsed_text(source_age)}")
+        notes.append(f"データ取得: {elapsed_text(source_age)}")
     if cache_age is not None:
-        tooltip.append(f"キャッシュ: {elapsed_text(cache_age)}の値")
-    return {"text": f"{prefix} {five_text}/{usage_text(seven.get('used'))}", "tooltip": "\n".join(tooltip), "class": state}
+        notes.append(f"キャッシュ: {elapsed_text(cache_age)}の値")
+    tip = tooltip.join(
+        tooltip.header(ICON_QUOTA, TITLES[target], subtitle, accent),
+        tooltip.grid(rows),
+        meter_line("5h", five, primary_unknown, size),
+        meter_line("7d", seven, weekly_unknown, size),
+        tooltip.rule(tooltip.grid_width(rows)) if notes else None,
+        tooltip.notes(*notes) if notes else None,
+    )
+    return {"text": f"{prefix} {five_text}/{seven_text}", "tooltip": tip, "class": state}
 
 
 def failure_output(target: str, reason: str) -> dict[str, str]:
     prefix = "CC" if target == "claude" else "CX"
-    title = "Claude Code" if target == "claude" else "Codex"
-    return {"text": f"{prefix} --%/--%", "tooltip": f"{title}\n取得失敗: {html.escape(reason)}", "class": "critical"}
+    tip = tooltip.join(
+        tooltip.header(ICON_QUOTA, TITLES[target], "unavailable", tooltip.CRITICAL),
+        tooltip.notes(f"取得失敗: {reason}"),
+    )
+    return {"text": f"{prefix} --%/--%", "tooltip": tip, "class": "critical"}
 
 
 def parse_target() -> str:
