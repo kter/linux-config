@@ -12,6 +12,7 @@ pactl の JSON 出力は日本語のデバイス名で壊れるため、音量�
 from __future__ import annotations
 
 import json
+import os
 import re
 import select
 import subprocess
@@ -114,36 +115,41 @@ def emit() -> None:
     sys.stdout.flush()
 
 
+RELEVANT = (b"sink", b"source", b"server")
+
+
 def main() -> int:
     emit()
     while True:
         try:
-            proc = subprocess.Popen(
-                ["pactl", "subscribe"], stdout=subprocess.PIPE, text=True, bufsize=1
-            )
+            # バッファ付きの readline() だと select() に見えない行が残るので、fd を直接読む。
+            proc = subprocess.Popen(["pactl", "subscribe"], stdout=subprocess.PIPE, bufsize=0)
         except OSError:
             time.sleep(REFRESH)
             emit()
             continue
-        while True:
-            ready, _, _ = select.select([proc.stdout], [], [], REFRESH)
-            if not ready:
+        fd = proc.stdout.fileno()
+        alive = True
+        while alive:
+            if not select.select([fd], [], [], REFRESH)[0]:
                 emit()
                 continue
-            line = proc.stdout.readline()
-            if not line:
+            chunk = os.read(fd, 65536)
+            if not chunk:
                 break  # pactl exited (e.g. PipeWire restart); resubscribe.
-            if not any(kind in line for kind in ("sink", "source", "server")):
-                continue
+            relevant = any(kind in chunk for kind in RELEVANT)
             # 音量変更は通知が連続するので、少し待ってまとめて1回だけ出す。
-            while select.select([proc.stdout], [], [], DEBOUNCE)[0]:
-                if not proc.stdout.readline():
+            while select.select([fd], [], [], DEBOUNCE)[0]:
+                more = os.read(fd, 65536)
+                if not more:
+                    alive = False
                     break
-            emit()
+                relevant = relevant or any(kind in more for kind in RELEVANT)
+            if relevant:
+                emit()
         proc.wait()
         time.sleep(1)
         emit()
-
 
 if __name__ == "__main__":
     try:

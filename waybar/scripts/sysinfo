@@ -140,7 +140,7 @@ def build_cpu() -> dict:
         "t": now,
         "cpu": {k: list(v) for k, v in times.items()},
         "procs": {pid: tick for pid, (tick, _) in procs.items()},
-    })
+    }) or {}
 
     prev_cpu = prev.get("cpu", {})
     total = usage(times.get("cpu", (0, 1)), prev_cpu.get("cpu"))
