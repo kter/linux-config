@@ -75,7 +75,7 @@
 
     "power-profiles-daemon": {
         "format": " {icon}",
-        "tooltip-format": "<span size=\"x-large\" foreground=\"#cdd6f4\"></span>  <span size=\"large\" weight=\"bold\" foreground=\"#cdd6f4\">Power Profile</span>\n<span font_family=\"monospace\" size=\"small\" letter_spacing=\"2048\" foreground=\"#a6e3a1\">{profile}</span>\n\n<span font_family=\"monospace\"><span foreground=\"#7f849c\">Profile    </span><span foreground=\"#cdd6f4\">{profile}</span></span>\n<span font_family=\"monospace\"><span foreground=\"#7f849c\">Driver     </span><span foreground=\"#cdd6f4\">{driver}</span></span>\n<span font_family=\"monospace\"><span foreground=\"#45475a\">────────────────────────</span></span>\n<span foreground=\"#7f849c\">クリックで切替</span>",
+        "tooltip-format": "電源プロファイル: {profile}\nドライバ: {driver}\n左クリックで切替",
         "format-icons": {
             "default": "電",
             "performance": "高",

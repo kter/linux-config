@@ -13,8 +13,12 @@
 
 from __future__ import annotations
 
+import fcntl
 import html
+import json
+import os
 import unicodedata
+from pathlib import Path
 from typing import Iterable, Sequence
 
 LABEL = "#7f849c"
@@ -133,3 +137,35 @@ def meter(fraction: float, size: int, color: str = ACCENT) -> str:
 
 def join(*blocks: str | None) -> str:
     return "\n".join(block for block in blocks if block is not None)
+
+
+def state_file(name: str) -> Path | None:
+    """Per-user state path under $XDG_RUNTIME_DIR; None (no state) when it is unset.
+
+    共有の /tmp へは書かない（予測可能な名前でのシンボリックリンク攻撃を避けるため）。
+    """
+    runtime = os.environ.get("XDG_RUNTIME_DIR")
+    return Path(runtime) / name if runtime else None
+
+
+def swap_state(path: Path | None, new: dict) -> dict | None:
+    """Store `new` and return the previous value, under an exclusive lock.
+
+    Wi-Fi と WWAN が同じインターフェースを見る場合や複数画面の Waybar でも、
+    読みかけのファイルや古い値での上書きが起きないようにする。
+    """
+    if path is None:
+        return None
+    try:
+        with open(path.with_suffix(".lock"), "w") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            try:
+                prev = json.loads(path.read_text())
+            except (OSError, json.JSONDecodeError):
+                prev = None
+            tmp = path.with_name(f".{path.name}.{os.getpid()}")
+            tmp.write_text(json.dumps(new))
+            os.replace(tmp, path)
+            return prev
+    except OSError:
+        return None

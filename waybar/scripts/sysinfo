@@ -31,12 +31,12 @@ CORE_COLORS = ["#a6e3a1", "#a6e3a1", "#94e2d5", "#89dceb", "#f9e2af", "#fab387",
 
 CLK_TCK = os.sysconf("SC_CLK_TCK")
 PAGE = os.sysconf("SC_PAGE_SIZE")
-STATE = Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp")) / "waybar-sysinfo-cpu.json"
+STATE = tooltip.state_file("waybar-sysinfo-cpu.json")
 
 
 def read(path: str | Path) -> str | None:
     try:
-        return Path(path).read_text()
+        return Path(path).read_text(errors="replace")
     except OSError:
         return None
 
@@ -84,18 +84,14 @@ def process_ticks() -> dict[str, tuple[int, str]]:
     return ticks
 
 
-def load_state() -> dict:
-    try:
-        return json.loads(STATE.read_text())
-    except (OSError, json.JSONDecodeError):
-        return {}
 
 
 def usage(now: tuple[int, int], prev: list[int] | None) -> float:
     busy, total = now
     if prev:
         busy, total = busy - prev[0], total - prev[1]
-    return 100.0 * busy / total if total > 0 else 0.0
+    # iowait は減ることがあり、busy の増分が total を超える場合がある。
+    return max(0.0, min(100.0, 100.0 * busy / total)) if total > 0 else 0.0
 
 
 def cpu_model() -> str:
@@ -140,15 +136,11 @@ def build_cpu() -> dict:
     now = time.time()
     times = cpu_times()
     procs = process_ticks()
-    prev = load_state()
-    try:
-        STATE.write_text(json.dumps({
-            "t": now,
-            "cpu": {k: list(v) for k, v in times.items()},
-            "procs": {pid: tick for pid, (tick, _) in procs.items()},
-        }))
-    except OSError:
-        pass
+    prev = tooltip.swap_state(STATE, {
+        "t": now,
+        "cpu": {k: list(v) for k, v in times.items()},
+        "procs": {pid: tick for pid, (tick, _) in procs.items()},
+    })
 
     prev_cpu = prev.get("cpu", {})
     total = usage(times.get("cpu", (0, 1)), prev_cpu.get("cpu"))

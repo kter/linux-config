@@ -38,7 +38,9 @@ class Stats:
 def _run(*cmd: str, timeout: float = 3) -> str | None:
     try:
         return subprocess.run(
-            cmd, capture_output=True, text=True, timeout=timeout, check=False
+            cmd, capture_output=True, text=True, timeout=timeout, check=False,
+            # ping の集計行を英語で解析するため、ロケールを固定する。
+            env={**os.environ, "LC_ALL": "C"},
         ).stdout
     except (OSError, subprocess.SubprocessError):
         return None
@@ -102,17 +104,8 @@ def ping(ifname: str) -> tuple[float | None, float | None]:
 
 def rates(ifname: str, rx: int, tx: int, now: float | None = None) -> tuple[float | None, float | None]:
     now = time.time() if now is None else now
-    runtime = Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp"))
-    state = runtime / f"waybar-netinfo-{ifname}.json"
-    prev = None
-    try:
-        prev = json.loads(state.read_text())
-    except (OSError, json.JSONDecodeError):
-        pass
-    try:
-        state.write_text(json.dumps({"t": now, "rx": rx, "tx": tx}))
-    except OSError:
-        pass
+    state = tooltip.state_file(f"waybar-netinfo-{ifname}.json")
+    prev = tooltip.swap_state(state, {"t": now, "rx": rx, "tx": tx}) if state else None
     if not prev:
         return None, None
     dt = now - prev.get("t", now)
