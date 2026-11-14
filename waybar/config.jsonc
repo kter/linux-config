@@ -10,7 +10,7 @@
         "sway/window"
     ],
     "modules-right": [
-        "network",
+        "custom/wifi",
         "custom/wwan",
         "backlight",
         "pulseaudio",
@@ -42,11 +42,11 @@
         "tooltip": false
     },
 
-    "network": {
-        "format-wifi": " {signalStrength}%",
-        "format-ethernet": " {ipaddr}",
-        "format-disconnected": "⚠ 未接続",
-        "tooltip-format": "{essid}\n{ifname}: {ipaddr}\n強度: {signalStrength}%"
+    "custom/wifi": {
+        "exec": "$HOME/.config/waybar/scripts/wifi",
+        "return-type": "json",
+        "interval": 5,
+        "tooltip": true
     },
 
     "custom/wwan": {

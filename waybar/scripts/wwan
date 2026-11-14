@@ -7,12 +7,12 @@ ModemManager の `mmcli -J` から状態を読む。Waybar の network モジュ
 モジュールごと非表示にする。
 """
 
-import html
 import json
 import subprocess
 import sys
-from pathlib import Path
 from typing import Any
+
+import netinfo
 
 TIMEOUT = 5
 
@@ -58,23 +58,6 @@ def access_label(techs: list[str]) -> str:
     return "--"
 
 
-def human_bytes(n: int) -> str:
-    size = float(n)
-    for unit in ("B", "KiB", "MiB", "GiB"):
-        if size < 1024 or unit == "GiB":
-            return f"{size:.1f} {unit}" if unit != "B" else f"{int(size)} B"
-        size /= 1024
-    return f"{n} B"
-
-
-def traffic(ifname: str) -> tuple[int, int] | None:
-    stats = Path("/sys/class/net") / ifname / "statistics"
-    try:
-        rx = int((stats / "rx_bytes").read_text())
-        tx = int((stats / "tx_bytes").read_text())
-    except (OSError, ValueError):
-        return None
-    return rx, tx
 
 
 def build() -> dict[str, Any]:
@@ -92,26 +75,28 @@ def build() -> dict[str, Any]:
     tech = access_label(generic.get("access-technologies", []))
     operator = gpp.get("operator-name", "--")
 
-    lines = [
-        f"{html.escape(operator)} ({tech})",
-        f"状態: {STATE_LABELS.get(state, state)}",
-        f"電波: {signal}%",
-    ]
-
+    ifname = None
+    apn = "--"
     for bearer_path in generic.get("bearers", []):
         bearer = (mmcli("-b", bearer_path) or {}).get("bearer", {})
         if bearer.get("status", {}).get("connected") != "yes":
             continue
-        ifname = bearer.get("status", {}).get("interface", "--")
-        ipv4 = bearer.get("ipv4-config", {}).get("address", "--")
+        ifname = bearer.get("status", {}).get("interface")
         apn = bearer.get("properties", {}).get("apn", "--")
-        lines.append(f"{ifname}: {ipv4}")
-        lines.append(f"APN: {html.escape(apn)}")
-        counts = traffic(ifname)
-        if counts:
-            rx, tx = counts
-            lines.append(f"受信 {human_bytes(rx)} / 送信 {human_bytes(tx)}（接続以降）")
         break
+
+    if ifname:
+        stats = netinfo.collect(ifname)
+        subtitle = netinfo.activity(stats)
+    else:
+        stats = netinfo.Stats()
+        subtitle = STATE_LABELS.get(state, state).upper()
+    rows = netinfo.stat_rows(stats)
+    rows.append(("Signal", f"{signal}%", "APN", apn))
+    tooltip = netinfo.render(
+        ICON_SIGNAL, f"{operator} ({tech})" if operator != "--" else "5G Modem", subtitle, rows,
+        footer=[f"状態: {STATE_LABELS.get(state, state)}", "クリックで有効/無効を切り替え"],
+    )
 
     if state == "connected":
         text = ICON_SIGNAL
@@ -126,8 +111,7 @@ def build() -> dict[str, Any]:
         text = ICON_SIGNAL
         css = "connecting" if state in {"connecting", "disconnecting", "searching"} else "disconnected"
 
-    lines.append("クリックで有効/無効を切り替え")
-    return {"text": text, "tooltip": "\n".join(lines), "class": css}
+    return {"text": text, "tooltip": tooltip, "class": css}
 
 
 def main() -> int:
