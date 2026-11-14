@@ -8,6 +8,8 @@ from pathlib import Path
 import subprocess
 import sys
 
+import tooltip
+
 UNIT = "vaio-presence-sway.service"
 
 
@@ -31,17 +33,21 @@ def main():
 
     state = systemctl("show", UNIT, "--property=ActiveState", "--value")
     if state == "active":
-        label, css, detail = "ON", "enabled", "不在と無操作が30秒続くと消灯"
+        label, css, detail, subtitle = "ON", "enabled", "不在と無操作が30秒続くと消灯", "watching"
     elif state == "inactive":
-        label, css, detail = "OFF", "disabled", "離席による消灯を一時停止中"
+        label, css, detail, subtitle = "OFF", "disabled", "離席による消灯を一時停止中", "paused"
     else:
-        label, css, detail = "!", "error", f"サービス状態: {state}"
-    print(json.dumps({
-        "text": {"enabled": "\uf06e", "disabled": "\uf070", "error": "\uf071"}[css],
-        "class": css,
-        "tooltip": f"離席検知: {label}\n{detail}\nクリックでON/OFF切替\n次回ログイン時はON\n通常の無操作ロック・消灯は引き続き有効",
-    }, ensure_ascii=False))
-
+        label, css, detail, subtitle = "!", "error", f"サービス状態: {state}", "error"
+    icon = {"enabled": "\uf06e", "disabled": "\uf070", "error": "\uf071"}[css]
+    accent = {"enabled": tooltip.ACCENT, "disabled": tooltip.WARN, "error": tooltip.CRITICAL}[css]
+    rows = [[("Detection", label), ("Service", state)]]
+    tip = tooltip.join(
+        tooltip.header(icon, "離席検知", subtitle, accent),
+        tooltip.grid(rows),
+        tooltip.rule(tooltip.grid_width(rows)),
+        tooltip.notes(detail, "クリックでON/OFF切替", "次回ログイン時はON", "通常の無操作ロック・消灯は引き続き有効"),
+    )
+    print(json.dumps({"text": icon, "class": css, "tooltip": tip}, ensure_ascii=False))
 
 if __name__ == "__main__":
     try:

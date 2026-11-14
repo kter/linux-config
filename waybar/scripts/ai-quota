@@ -3,7 +3,6 @@
 
 import argparse
 import datetime as dt
-import html
 import json
 import os
 import shutil
@@ -15,6 +14,8 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import Any
+
+import tooltip
 
 
 CACHE_MAX_AGE = 30 * 60
@@ -380,12 +381,26 @@ def local_reset_text(reset_at: float) -> str:
     return local.strftime("%m/%d %H:%M")
 
 
-def quota_line(label: str, quota: dict[str, Any], unknown: bool = False) -> str:
+ICON_QUOTA = "\uf3fd"
+TITLES = {"claude": "Claude Code", "codex": "Codex"}
+
+
+def reset_text(quota: dict[str, Any], unknown: bool = False) -> str:
     reset_at = float(quota["resets_at"])
-    used = "--%" if unknown else usage_text(quota.get("used"))
     if unknown:
-        return f"{label}:  {used}  (データが5時間以上前 / {local_reset_text(reset_at)})"
-    return f"{label}:  {used}  ({remaining_text(reset_at)} / {local_reset_text(reset_at)})"
+        return f"不明 ({local_reset_text(reset_at)})"
+    return f"{remaining_text(reset_at)} ({local_reset_text(reset_at)})"
+
+
+def meter_line(label: str, quota: dict[str, Any], unknown: bool, size: int) -> str:
+    try:
+        used = 0.0 if unknown else float(quota.get("used"))
+    except (TypeError, ValueError):
+        used = 0.0
+    color = tooltip.level_color(used, 70, 90)
+    if color == tooltip.VALUE:
+        color = tooltip.ACCENT
+    return tooltip.mono(f'<span foreground="{tooltip.LABEL}">{label} </span>') + tooltip.meter(used / 100, size, color)
 
 
 def output_for(target: str, data: dict[str, Any], cache_age: float | None = None) -> dict[str, str]:
@@ -402,20 +417,40 @@ def output_for(target: str, data: dict[str, Any], cache_age: float | None = None
     state = "critical" if highest >= 90 else "warning" if highest >= 70 else ""
     prefix = "CC" if target == "claude" else "CX"
     five_text = "--%" if primary_unknown else usage_text(five.get("used"))
-    tooltip = ["Claude Code" if target == "claude" else "Codex"]
-    tooltip.append(quota_line("5h", five, primary_unknown))
-    tooltip.append(quota_line("7d", seven))
+    seven_text = usage_text(seven.get("used"))
+
+    rows = [
+        [("5h", five_text), ("Reset", reset_text(five, primary_unknown))],
+        [("7d", seven_text), ("Reset", reset_text(seven))],
+    ]
+    subtitle = {"critical": "nearly out", "warning": "running low"}.get(state, "plenty left")
+    accent = {"critical": tooltip.CRITICAL, "warning": tooltip.WARN}.get(state, tooltip.ACCENT)
+    size = tooltip.grid_width(rows) - 3
+    notes = []
+    if primary_unknown:
+        notes.append("5h はデータが5時間以上前のため不明")
     if target == "codex":
-        tooltip.append(f"データ取得: {elapsed_text(source_age)}")
+        notes.append(f"データ取得: {elapsed_text(source_age)}")
     if cache_age is not None:
-        tooltip.append(f"キャッシュ: {elapsed_text(cache_age)}の値")
-    return {"text": f"{prefix} {five_text}/{usage_text(seven.get('used'))}", "tooltip": "\n".join(tooltip), "class": state}
+        notes.append(f"キャッシュ: {elapsed_text(cache_age)}の値")
+    tip = tooltip.join(
+        tooltip.header(ICON_QUOTA, TITLES[target], subtitle, accent),
+        tooltip.grid(rows),
+        meter_line("5h", five, primary_unknown, size),
+        meter_line("7d", seven, False, size),
+        tooltip.rule(tooltip.grid_width(rows)) if notes else None,
+        tooltip.notes(*notes) if notes else None,
+    )
+    return {"text": f"{prefix} {five_text}/{seven_text}", "tooltip": tip, "class": state}
 
 
 def failure_output(target: str, reason: str) -> dict[str, str]:
     prefix = "CC" if target == "claude" else "CX"
-    title = "Claude Code" if target == "claude" else "Codex"
-    return {"text": f"{prefix} --%/--%", "tooltip": f"{title}\n取得失敗: {html.escape(reason)}", "class": "critical"}
+    tip = tooltip.join(
+        tooltip.header(ICON_QUOTA, TITLES[target], "unavailable", tooltip.CRITICAL),
+        tooltip.notes(f"取得失敗: {reason}"),
+    )
+    return {"text": f"{prefix} --%/--%", "tooltip": tip, "class": "critical"}
 
 
 def parse_target() -> str:

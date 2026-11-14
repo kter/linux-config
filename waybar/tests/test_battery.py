@@ -3,11 +3,14 @@ import importlib.machinery
 import importlib.util
 import os
 from pathlib import Path
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
 
 SCRIPT = Path(__file__).resolve().parents[1] / 'scripts' / 'battery'
+# battery imports the shared tooltip module that sits next to it.
+sys.path.insert(0, str(SCRIPT.parent))
 loader = importlib.machinery.SourceFileLoader('battery', str(SCRIPT))
 spec = importlib.util.spec_from_loader(loader.name, loader)
 battery = importlib.util.module_from_spec(spec)

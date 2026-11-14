@@ -18,9 +18,9 @@
         "custom/presence",
         "custom/claude-quota",
         "custom/codex-quota",
-        "cpu",
-        "memory",
-        "temperature#cpu",
+        "custom/cpu",
+        "custom/memory",
+        "custom/temperature",
         "custom/battery",
         "custom/weather",
         "clock",
@@ -61,7 +61,8 @@
     "backlight": {
         "format": " {percent}%",
         "on-scroll-up": "brightnessctl set +2%",
-        "on-scroll-down": "brightnessctl set 2%-"
+        "on-scroll-down": "brightnessctl set 2%-",
+        "tooltip-format": "<span size=\"x-large\" foreground=\"#cdd6f4\"></span>  <span size=\"large\" weight=\"bold\" foreground=\"#cdd6f4\">Display</span>\n<span font_family=\"monospace\" size=\"small\" letter_spacing=\"2048\" foreground=\"#a6e3a1\">BRIGHTNESS</span>\n\n<span font_family=\"monospace\"><span foreground=\"#7f849c\">Brightness </span><span foreground=\"#cdd6f4\">{percent}%</span></span>\n<span font_family=\"monospace\"><span foreground=\"#45475a\">────────────────────────</span></span>\n<span foreground=\"#7f849c\">スクロールで調整</span>"
     },
 
     "pulseaudio": {
@@ -69,12 +70,12 @@
         "format-muted": " mute",
         "scroll-step": 5,
         "on-click": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
-        "tooltip-format": "音量: {volume}%"
+        "tooltip-format": "<span size=\"x-large\" foreground=\"#cdd6f4\"></span>  <span size=\"large\" weight=\"bold\" foreground=\"#cdd6f4\">{desc}</span>\n<span font_family=\"monospace\" size=\"small\" letter_spacing=\"2048\" foreground=\"#a6e3a1\">AUDIO OUT</span>\n\n<span font_family=\"monospace\"><span foreground=\"#7f849c\">Volume     </span><span foreground=\"#cdd6f4\">{volume}%</span></span>\n<span font_family=\"monospace\"><span foreground=\"#7f849c\">Mic        </span><span foreground=\"#cdd6f4\">{source_volume}%</span></span>\n<span font_family=\"monospace\"><span foreground=\"#7f849c\">Mic Device </span><span foreground=\"#cdd6f4\">{source_desc}</span></span>\n<span font_family=\"monospace\"><span foreground=\"#45475a\">────────────────────────────────</span></span>\n<span foreground=\"#7f849c\">クリックでミュート / スクロールで音量</span>"
     },
 
     "power-profiles-daemon": {
         "format": " {icon}",
-        "tooltip-format": "電源プロファイル: {profile}\nドライバ: {driver}\n左クリックで切替",
+        "tooltip-format": "<span size=\"x-large\" foreground=\"#cdd6f4\"></span>  <span size=\"large\" weight=\"bold\" foreground=\"#cdd6f4\">Power Profile</span>\n<span font_family=\"monospace\" size=\"small\" letter_spacing=\"2048\" foreground=\"#a6e3a1\">{profile}</span>\n\n<span font_family=\"monospace\"><span foreground=\"#7f849c\">Profile    </span><span foreground=\"#cdd6f4\">{profile}</span></span>\n<span font_family=\"monospace\"><span foreground=\"#7f849c\">Driver     </span><span foreground=\"#cdd6f4\">{driver}</span></span>\n<span font_family=\"monospace\"><span foreground=\"#45475a\">────────────────────────</span></span>\n<span foreground=\"#7f849c\">クリックで切替</span>",
         "format-icons": {
             "default": "電",
             "performance": "高",
@@ -106,42 +107,22 @@
         "on-click": "pkill -RTMIN+9 waybar"
     },
 
-    "cpu": {
-        "interval": 3,
-        "format": " {usage}% {icon0}{icon1}{icon2}{icon3}{icon4}{icon5}{icon6}{icon7}{icon8}{icon9}{icon10}{icon11}{icon12}{icon13}{icon14}{icon15}",
-        "format-icons": [
-            "<span color='#a6e3a1'>▁</span>",
-            "<span color='#a6e3a1'>▂</span>",
-            "<span color='#94e2d5'>▃</span>",
-            "<span color='#89dceb'>▄</span>",
-            "<span color='#f9e2af'>▅</span>",
-            "<span color='#fab387'>▆</span>",
-            "<span color='#f38ba8'>▇</span>",
-            "<span color='#f38ba8'>█</span>"
-        ],
-        "states": {
-            "warning": 70,
-            "critical": 90
-        },
-        "tooltip-format": "CPU: {usage}% (load {load})"
+    "custom/cpu": {
+        "exec": "$HOME/.config/waybar/scripts/sysinfo --target cpu",
+        "return-type": "json",
+        "interval": 3
     },
 
-    "memory": {
-        "interval": 5,
-        "format": " {percentage}%",
-        "states": {
-            "warning": 75,
-            "critical": 90
-        },
-        "tooltip-format": "メモリ: {used:0.1f} / {total:0.1f} GiB ({percentage}%)\nスワップ: {swapUsed:0.1f} / {swapTotal:0.1f} GiB"
+    "custom/memory": {
+        "exec": "$HOME/.config/waybar/scripts/sysinfo --target memory",
+        "return-type": "json",
+        "interval": 5
     },
 
-    "temperature#cpu": {
-        "thermal-zone": 7,
-        "critical-threshold": 90,
-        "format": " {temperatureC}°C",
-        "interval": 5,
-        "tooltip-format": "CPU: {temperatureC}°C"
+    "custom/temperature": {
+        "exec": "$HOME/.config/waybar/scripts/sysinfo --target temp",
+        "return-type": "json",
+        "interval": 5
     },
 
     "custom/battery": {
@@ -164,7 +145,16 @@
         "interval": 1,
         "format": " {:%Y/%m/%d %H:%M:%S}",
         "format-alt": " {:%Y/%m/%d %H:%M:%S}",
-        "tooltip-format": "<tt>{calendar}</tt>"
+        "tooltip-format": "<span size=\"x-large\" foreground=\"#cdd6f4\"></span>  <span size=\"large\" weight=\"bold\" foreground=\"#cdd6f4\">{0:%Y/%m/%d}</span>\n<span font_family=\"monospace\" size=\"small\" letter_spacing=\"2048\" foreground=\"#a6e3a1\">{0:%A}</span>\n\n<tt>{calendar}</tt>",
+        "calendar": {
+            "mode": "month",
+            "format": {
+                "months": "<span color='#cdd6f4'><b>{}</b></span>",
+                "weekdays": "<span color='#7f849c'>{}</span>",
+                "days": "<span color='#cdd6f4'>{}</span>",
+                "today": "<span color='#a6e3a1'><b><u>{}</u></b></span>"
+            }
+        }
     },
 
     "tray": {

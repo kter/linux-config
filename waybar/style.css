@@ -56,9 +56,9 @@ window#waybar {
 #custom-claude-quota,
 #custom-codex-quota,
 #custom-weather,
-#cpu,
-#memory,
-#temperature,
+#custom-cpu,
+#custom-memory,
+#custom-temperature,
 #custom-battery,
 #clock,
 #tray,
@@ -77,23 +77,23 @@ window#waybar {
 #custom-claude-quota,
 #custom-codex-quota,
 #custom-weather,
-#cpu,
-#memory,
-#temperature,
+#custom-cpu,
+#custom-memory,
+#custom-temperature,
 #custom-battery {
     border-right: 1px solid #313244;
 }
 
 /* CPU 使用率 */
-#cpu {
+#custom-cpu {
     color: #cba6f7;
 }
 
-#cpu.warning {
+#custom-cpu.warning {
     color: #f9e2af;
 }
 
-#cpu.critical {
+#custom-cpu.critical {
     color: #f38ba8;
 }
 
@@ -134,30 +134,29 @@ window#waybar {
 }
 
 /* メモリ使用率 */
-#memory {
+#custom-memory {
     color: #f5c2e7;
 }
 
-#memory.warning {
+#custom-memory.warning {
     color: #f9e2af;
 }
 
-#memory.critical {
+#custom-memory.critical {
     color: #f38ba8;
 }
 
 /* CPU温度 */
-#temperature.cpu {
+#custom-temperature {
     color: #89dceb;
 }
 
-/* GPU温度 */
-#temperature.gpu {
-    color: #b4befe;
+/* 高温アラート */
+#custom-temperature.warning {
+    color: #f9e2af;
 }
 
-/* 高温アラート */
-#temperature.critical {
+#custom-temperature.critical {
     color: #f38ba8;
 }
 

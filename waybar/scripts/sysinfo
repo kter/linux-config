@@ -1,0 +1,384 @@
+#!/usr/bin/env python3
+"""Emit CPU, memory, or temperature status for Waybar.
+
+Waybar 組み込みの cpu / memory / temperature はツールチップに出せる値が少ないため、
+この1本で置き換える。`--target cpu|memory|temp` で出す対象を選ぶ。
+
+CPU 使用率とプロセスごとの CPU 使用率は、前回実行時のカウンタとの差分で出す。
+前回値は $XDG_RUNTIME_DIR に保存し、初回は起動以降の平均になる。
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+import time
+from pathlib import Path
+
+import tooltip
+
+ICON_CPU = ""
+ICON_MEMORY = ""
+ICON_TEMP = ""
+
+WARNING = {"cpu": 70, "memory": 75, "temp": 80}
+CRITICAL = {"cpu": 90, "memory": 90, "temp": 90}
+
+CORE_BARS = "▁▂▃▄▅▆▇█"
+CORE_COLORS = ["#a6e3a1", "#a6e3a1", "#94e2d5", "#89dceb", "#f9e2af", "#fab387", "#f38ba8", "#f38ba8"]
+
+CLK_TCK = os.sysconf("SC_CLK_TCK")
+PAGE = os.sysconf("SC_PAGE_SIZE")
+STATE = Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp")) / "waybar-sysinfo-cpu.json"
+
+
+def read(path: str | Path) -> str | None:
+    try:
+        return Path(path).read_text()
+    except OSError:
+        return None
+
+
+def css_class(target: str, value: float | None) -> str:
+    if value is None:
+        return ""
+    if value >= CRITICAL[target]:
+        return "critical"
+    if value >= WARNING[target]:
+        return "warning"
+    return ""
+
+
+# ---------------------------------------------------------------- CPU
+
+def cpu_times() -> dict[str, tuple[int, int]]:
+    """{"cpu": (busy, total), "cpu0": ...} from /proc/stat."""
+    times = {}
+    for line in (read("/proc/stat") or "").splitlines():
+        if not line.startswith("cpu"):
+            break
+        name, *fields = line.split()
+        values = [int(v) for v in fields[:8]]
+        idle = values[3] + values[4]
+        times[name] = (sum(values) - idle, sum(values))
+    return times
+
+
+def process_ticks() -> dict[str, tuple[int, str]]:
+    ticks = {}
+    for entry in Path("/proc").iterdir():
+        if not entry.name.isdigit():
+            continue
+        stat = read(entry / "stat")
+        if not stat:
+            continue
+        # comm は括弧付きで空白を含みうるので、最後の ')' で区切る。
+        head, _, rest = stat.rpartition(")")
+        fields = rest.split()
+        try:
+            ticks[entry.name] = (int(fields[11]) + int(fields[12]), head.partition("(")[2])
+        except (IndexError, ValueError):
+            continue
+    return ticks
+
+
+def load_state() -> dict:
+    try:
+        return json.loads(STATE.read_text())
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def usage(now: tuple[int, int], prev: list[int] | None) -> float:
+    busy, total = now
+    if prev:
+        busy, total = busy - prev[0], total - prev[1]
+    return 100.0 * busy / total if total > 0 else 0.0
+
+
+def cpu_model() -> str:
+    for line in (read("/proc/cpuinfo") or "").splitlines():
+        if line.startswith("model name"):
+            name = line.split(":", 1)[1].strip()
+            return name.replace("(R)", "").replace("(TM)", "").replace("Intel Core", "Core")
+    return "CPU"
+
+
+def frequencies() -> list[int]:
+    freqs = []
+    for path in Path("/sys/devices/system/cpu").glob("cpu[0-9]*/cpufreq/scaling_cur_freq"):
+        try:
+            freqs.append(int(path.read_text()))
+        except (OSError, ValueError):
+            pass
+    return freqs
+
+
+def uptime_text() -> str:
+    try:
+        seconds = int(float((read("/proc/uptime") or "0").split()[0]))
+    except ValueError:
+        return "--"
+    days, rem = divmod(seconds, 86400)
+    hours, rem = divmod(rem, 3600)
+    return f"{days}d {hours}h" if days else f"{hours}h {rem // 60:02d}m"
+
+
+def cpu_activity(total: float) -> str:
+    if total >= 90:
+        return "maxed out"
+    if total >= 50:
+        return "crunching"
+    if total >= 15:
+        return "working"
+    return "idling"
+
+
+def build_cpu() -> dict:
+    now = time.time()
+    times = cpu_times()
+    procs = process_ticks()
+    prev = load_state()
+    try:
+        STATE.write_text(json.dumps({
+            "t": now,
+            "cpu": {k: list(v) for k, v in times.items()},
+            "procs": {pid: tick for pid, (tick, _) in procs.items()},
+        }))
+    except OSError:
+        pass
+
+    prev_cpu = prev.get("cpu", {})
+    total = usage(times.get("cpu", (0, 1)), prev_cpu.get("cpu"))
+    cores = sorted((k for k in times if k != "cpu"), key=lambda k: int(k[3:]))
+    per_core = [usage(times[k], prev_cpu.get(k)) for k in cores]
+
+    icons = "".join(
+        f"<span color='{CORE_COLORS[min(7, int(u / 12.5))]}'>{CORE_BARS[min(7, int(u / 12.5))]}</span>"
+        for u in per_core
+    )
+
+    dt = now - prev.get("t", now)
+    top = []
+    if dt > 0:
+        prev_procs = prev.get("procs", {})
+        shares: dict[str, float] = {}
+        for pid, (tick, comm) in procs.items():
+            if pid in prev_procs and tick >= prev_procs[pid]:
+                shares[comm] = shares.get(comm, 0.0) + (tick - prev_procs[pid]) / CLK_TCK / dt * 100
+        top = sorted(((v, k) for k, v in shares.items() if v > 0), reverse=True)
+
+    load = (read("/proc/loadavg") or "").split()[:3]
+    freqs = frequencies()
+    rows = [
+        [("Usage", f"{total:.0f}%"), ("Load", " ".join(load) or "--")],
+        [("Avg Freq", f"{sum(freqs) / len(freqs) / 1e6:.2f} GHz" if freqs else "--"),
+         ("Max Freq", f"{max(freqs) / 1e6:.2f} GHz" if freqs else "--")],
+        [("Threads", str(len(cores))), ("Uptime", uptime_text())],
+        [("Processes", str(len(procs)))],
+    ]
+
+    core_cells = [(f"#{i:<2}", f"{u:3.0f}%") for i, u in enumerate(per_core)]
+    core_rows = [core_cells[i:i + 4] for i in range(0, len(core_cells), 4)]
+
+    top_rows = [[(comm[:16], f"{share:.1f}%")] for share, comm in top[:5]] or [[("--", "")]]
+
+    width = tooltip.grid_width(rows)
+    tip = tooltip.join(
+        tooltip.header(ICON_CPU, cpu_model(), cpu_activity(total),
+                       accent=tooltip.level_color(total, WARNING["cpu"], CRITICAL["cpu"])
+                       if total >= WARNING["cpu"] else tooltip.ACCENT),
+        tooltip.grid(rows, {"Usage": tooltip.level_color(total, WARNING["cpu"], CRITICAL["cpu"])}),
+        tooltip.meter(total / 100, width,
+                      tooltip.level_color(total, WARNING["cpu"], CRITICAL["cpu"])
+                      if total >= WARNING["cpu"] else tooltip.ACCENT),
+        "",
+        tooltip.section("per thread"),
+        tooltip.grid(core_rows),
+        "",
+        tooltip.section("top processes"),
+        tooltip.grid(top_rows),
+    )
+    return {
+        "text": f" {total:.0f}% {icons}",
+        "tooltip": tip,
+        "class": css_class("cpu", total),
+        "percentage": round(total),
+    }
+
+
+# ---------------------------------------------------------------- memory
+
+def meminfo() -> dict[str, int]:
+    info = {}
+    for line in (read("/proc/meminfo") or "").splitlines():
+        key, _, rest = line.partition(":")
+        try:
+            info[key] = int(rest.split()[0]) * 1024
+        except (IndexError, ValueError):
+            pass
+    return info
+
+
+def gib(n: float) -> str:
+    return f"{n / 2**30:.1f} GiB"
+
+
+def top_memory(limit: int = 5) -> list[tuple[int, str]]:
+    """プロセス名ごとに RSS を合算する（Chrome などは多数のプロセスに分かれるため）。"""
+    totals: dict[str, int] = {}
+    for entry in Path("/proc").iterdir():
+        if not entry.name.isdigit():
+            continue
+        statm = read(entry / "statm")
+        comm = (read(entry / "comm") or "").strip()
+        if not statm or not comm:
+            continue
+        try:
+            rss = int(statm.split()[1]) * PAGE
+        except (IndexError, ValueError):
+            continue
+        totals[comm] = totals.get(comm, 0) + rss
+    return sorted(((v, k) for k, v in totals.items()), reverse=True)[:limit]
+
+
+def build_memory() -> dict:
+    info = meminfo()
+    total = info.get("MemTotal", 0)
+    available = info.get("MemAvailable", 0)
+    used = total - available
+    pct = 100 * used / total if total else 0
+    swap_total = info.get("SwapTotal", 0)
+    swap_used = swap_total - info.get("SwapFree", 0)
+    cache = info.get("Cached", 0) + info.get("Buffers", 0) + info.get("SReclaimable", 0)
+
+    rows = [
+        [("Used", gib(used)), ("Total", gib(total))],
+        [("Available", gib(available)), ("Cache", gib(cache))],
+        [("Swap Used", gib(swap_used) if swap_total else "none"),
+         ("Swap", gib(swap_total) if swap_total else "none")],
+    ]
+    color = tooltip.level_color(pct, WARNING["memory"], CRITICAL["memory"])
+    activity = "tight" if pct >= CRITICAL["memory"] else "filling up" if pct >= WARNING["memory"] else "plenty free"
+    top_rows = [[(comm[:16], gib(rss))] for rss, comm in top_memory()] or [[("--", "")]]
+    width = tooltip.grid_width(rows)
+    tip = tooltip.join(
+        tooltip.header(ICON_MEMORY, f"Memory {pct:.0f}%", activity,
+                       accent=color if pct >= WARNING["memory"] else tooltip.ACCENT),
+        tooltip.grid(rows, {"Used": color}),
+        tooltip.meter(pct / 100, width, color if pct >= WARNING["memory"] else tooltip.ACCENT),
+        "",
+        tooltip.section("top processes (rss)"),
+        tooltip.grid(top_rows),
+    )
+    return {
+        "text": f" {pct:.0f}%",
+        "tooltip": tip,
+        "class": css_class("memory", pct),
+        "percentage": round(pct),
+    }
+
+
+# ---------------------------------------------------------------- temperature
+
+def hwmon(name: str) -> Path | None:
+    for path in Path("/sys/class/hwmon").glob("hwmon*"):
+        if (read(path / "name") or "").strip() == name:
+            return path
+    return None
+
+
+def milli(path: Path) -> float | None:
+    try:
+        return int(path.read_text()) / 1000
+    except (OSError, ValueError):
+        return None
+
+
+def zone_temp(kind: str) -> float | None:
+    for zone in Path("/sys/class/thermal").glob("thermal_zone*"):
+        if (read(zone / "type") or "").strip() == kind:
+            return milli(zone / "temp")
+    return None
+
+
+def build_temp() -> dict:
+    cpu = zone_temp("TCPU")
+    package = None
+    cores: list[tuple[int, float]] = []
+    coretemp = hwmon("coretemp")
+    if coretemp:
+        for label in coretemp.glob("temp*_label"):
+            text = (read(label) or "").strip()
+            value = milli(label.with_name(label.name.replace("_label", "_input")))
+            if value is None:
+                continue
+            if text.startswith("Package"):
+                package = value
+            elif text.startswith("Core "):
+                cores.append((int(text.split()[1]), value))
+    cores.sort()
+    if cpu is None:
+        cpu = package
+
+    def deg(value: float | None) -> str:
+        return f"{value:.0f}°C" if value is not None else "--"
+
+    nvme = hwmon("nvme")
+    acpi = hwmon("acpitz")
+    fan = hwmon("acpi_fan")
+    fan_rpm = None
+    if fan:
+        try:
+            fan_rpm = int((read(fan / "fan1_input") or "").strip())
+        except ValueError:
+            pass
+    hottest = max((v for _, v in cores), default=None)
+    average = sum(v for _, v in cores) / len(cores) if cores else None
+
+    rows = [
+        [("CPU", deg(cpu)), ("Package", deg(package))],
+        [("Hottest", deg(hottest)), ("Core Avg", deg(average))],
+        [("NVMe", deg(milli(nvme / "temp1_input") if nvme else None)),
+         ("Chassis", deg(milli(acpi / "temp1_input") if acpi else None))],
+        [("Fan", f"{fan_rpm} rpm" if fan_rpm is not None else "--")],
+    ]
+    warn, crit = WARNING["temp"], CRITICAL["temp"]
+    colors = {
+        "CPU": tooltip.level_color(cpu, warn, crit),
+        "Hottest": tooltip.level_color(hottest, warn, crit),
+    }
+    core_cells = [(f"#{n:<2}", deg(v)) for n, v in cores]
+    core_rows = [core_cells[i:i + 4] for i in range(0, len(core_cells), 4)]
+    level = cpu or 0
+    activity = "running hot" if level >= crit else "warm" if level >= warn else "cool"
+    tip = tooltip.join(
+        tooltip.header(ICON_TEMP, f"Thermals {deg(cpu)}", activity,
+                       accent=tooltip.level_color(level, warn, crit) if level >= warn else tooltip.ACCENT),
+        tooltip.grid(rows, colors),
+        "",
+        tooltip.section("cores"),
+        tooltip.grid(core_rows) if core_rows else tooltip.notes("--"),
+    )
+    return {
+        "text": f" {deg(cpu)}",
+        "tooltip": tip,
+        "class": css_class("temp", cpu),
+        "percentage": round(cpu or 0),
+    }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--target", choices=["cpu", "memory", "temp"], required=True)
+    target = parser.parse_args().target
+    build = {"cpu": build_cpu, "memory": build_memory, "temp": build_temp}[target]
+    json.dump(build(), sys.stdout, ensure_ascii=False)
+    sys.stdout.write("\n")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

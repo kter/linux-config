@@ -24,6 +24,8 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
+import tooltip
+
 WEATHER_MAX_AGE = 15 * 60
 NOWCAST_MAX_AGE = 5 * 60
 # これより古いナウキャストは現状とずれるので出さない。
@@ -65,7 +67,6 @@ CHART_ROWS = 3
 RAIN_SCALE_MAX = 30.0
 BAR_COLOR = "#74c7ec"
 BASELINE_COLOR = "#6c7086"
-SEPARATOR = "─" * 16
 
 # Font Awesome 6 Free Solid のグリフ。style.css のフォントスタックに含まれている。
 ICON_SUN = ""
@@ -351,24 +352,24 @@ def nowcast_lines(nowcast: dict[str, Any]) -> list[str]:
     points = nowcast["points"]
     rains = [point["rain"] for point in points]
     labels = {index: str(index * 10) for index in range(0, len(points), 2)}
-    lines = [html.escape(f"今後1時間 (mm/h, {points[0]['time']}〜)")]
+    lines = [tooltip.section(f"next hour · mm/h from {points[0]['time']}")]
     lines += bar_chart(rains, labels)
     peak = max(rains)
-    lines.append(html.escape(f"最大 {peak:.1f} mm/h" if peak > 0 else "雨の予報なし"))
+    lines.append(tooltip.notes(f"最大 {peak:.1f} mm/h" if peak > 0 else "雨の予報なし"))
     return lines
 
 
 def forecast_lines(forecast: list[dict[str, Any]]) -> list[str]:
     rains = [entry["rain"] for entry in forecast]
     labels = {index: f"{forecast[index]['hour']}" for index in range(0, len(forecast), 3)}
-    lines = [html.escape(f"今後{len(forecast)}時間 (mm, 時)")]
+    lines = [tooltip.section(f"next {len(forecast)}h · mm by hour")]
     lines += bar_chart(rains, labels)
     total = sum(float(rain or 0) for rain in rains)
     probabilities = [entry["probability"] for entry in forecast if entry["probability"] is not None]
     summary = f"合計 {total:.1f} mm" if total > 0 else "雨の予報なし"
     if probabilities:
         summary += f" / 降水確率 最大 {max(probabilities):.0f}%"
-    lines.append(html.escape(summary))
+    lines.append(tooltip.notes(summary))
     return lines
 
 
@@ -379,38 +380,40 @@ def render(
     temperature = weather.get("temperature")
     degrees = f"{float(temperature):.0f}" if temperature is not None else "--"
 
-    lines = [f"{label} {degrees}°C"]
-    if weather.get("apparent") is not None:
-        lines.append(f"体感: {float(weather['apparent']):.0f}°C")
-    if weather.get("high") is not None and weather.get("low") is not None:
-        lines.append(f"最高/最低: {float(weather['high']):.0f} / {float(weather['low']):.0f}°C")
-    if weather.get("humidity") is not None:
-        lines.append(f"湿度: {float(weather['humidity']):.0f}%")
-    if weather.get("wind") is not None:
-        lines.append(f"風速: {float(weather['wind']):.1f} km/h")
-    # ここまでは素のテキスト。以降はグラフの markup を混ぜるので行ごとにエスケープする。
-    lines = [html.escape(line) for line in lines]
+    def num(key: str, spec: str) -> str:
+        value = weather.get(key)
+        return spec.format(float(value)) if value is not None else "--"
 
+    high_low = "--"
+    if weather.get("high") is not None and weather.get("low") is not None:
+        high_low = f"{float(weather['high']):.0f} / {float(weather['low']):.0f}°C"
+    rows = [
+        [("Feels Like", num("apparent", "{:.0f}°C")), ("High / Low", high_low)],
+        [("Humidity", num("humidity", "{:.0f}%")), ("Wind", num("wind", "{:.1f} km/h"))],
+    ]
+
+    blocks = [
+        tooltip.header(icon, f"{label} {degrees}°C", weather.get("place") or "",
+                       tooltip.WARN if stale else tooltip.ACCENT),
+        tooltip.grid(rows),
+        tooltip.rule(tooltip.grid_width(rows)),
+    ]
     if nowcast:
-        lines += [SEPARATOR, *nowcast_lines(nowcast)]
+        blocks += [*nowcast_lines(nowcast), ""]
     # 古いキャッシュを出すときに過ぎた時間帯を「今後」と呼ばないよう、まだ終わっていない区間に絞る。
     now = time.time()
     upcoming = [
         entry for entry in weather.get("forecast") or [] if float(entry.get("end") or 0) > now
     ][:12]
     if upcoming:
-        lines += [SEPARATOR, *forecast_lines(upcoming)]
+        blocks += [*forecast_lines(upcoming), ""]
 
-    footer = []
-    if weather.get("place"):
-        footer.append(f"地点: {weather['place']}")
     updated = time.strftime("%H:%M", time.localtime(float(weather.get("fetched_at") or 0)))
-    footer.append(("最終更新: " if stale else "更新: ") + updated)
-    lines += [SEPARATOR, *(html.escape(line) for line in footer)]
+    blocks.append(tooltip.notes(("最終更新: " if stale else "更新: ") + updated))
 
     return {
         "text": f"{icon} {degrees}°C",
-        "tooltip": "\n".join(lines),
+        "tooltip": tooltip.join(*blocks),
         "class": "stale" if stale else "",
     }
 
