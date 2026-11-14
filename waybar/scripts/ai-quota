@@ -6,6 +6,8 @@ import datetime as dt
 import html
 import json
 import os
+import shutil
+import subprocess
 import sys
 import threading
 import time
@@ -199,7 +201,99 @@ def last_rate_limits(path: Path) -> dict[str, Any]:
     return latest
 
 
+def app_server_window(item: Any) -> dict[str, float]:
+    if not isinstance(item, dict):
+        raise QuotaError("クォータ情報が不正です")
+    try:
+        return {"used": float(item["usedPercent"]), "resets_at": float(item["resetsAt"])}
+    except (KeyError, TypeError, ValueError) as error:
+        raise QuotaError("クォータ情報が不正です") from error
+
+
+def codex_binary() -> str:
+    """Find codex even when Waybar runs with a minimal PATH (e.g. no mise shims)."""
+    found = shutil.which("codex")
+    if found:
+        return found
+    candidates = [
+        home_path(".local", "share", "mise", "shims", "codex"),
+        home_path(".local", "bin", "codex"),
+        home_path(".npm-global", "bin", "codex"),
+        *sorted(home_path(".local", "share", "mise", "installs", "node").glob("*/bin/codex"), reverse=True),
+    ]
+    for candidate in candidates:
+        if os.access(candidate, os.X_OK):
+            return str(candidate)
+    raise QuotaError("codex コマンドが見つかりません")
+
+
+def fetch_codex_app_server(timeout: float = 10) -> dict[str, Any]:
+    """Ask the official Codex app-server for live rate limits over stdio JSON-RPC."""
+    messages = [
+        {"jsonrpc": "2.0", "id": 1, "method": "initialize",
+         "params": {"clientInfo": {"name": "waybar-quota", "version": "1.0"}}},
+        {"jsonrpc": "2.0", "method": "initialized"},
+        {"jsonrpc": "2.0", "id": 2, "method": "account/rateLimits/read"},
+    ]
+    try:
+        process = subprocess.Popen(
+            [codex_binary(), "app-server"],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        )
+    except OSError as error:
+        raise QuotaError("codex コマンドを起動できません") from error
+    result: dict[str, Any] = {}
+
+    def read() -> None:
+        assert process.stdout is not None
+        for line in process.stdout:
+            try:
+                message = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(message, dict) and message.get("id") == 2:
+                result["message"] = message
+                return
+
+    reader = threading.Thread(target=read, daemon=True)
+    reader.start()
+    try:
+        assert process.stdin is not None
+        process.stdin.write("".join(json.dumps(m) + "\n" for m in messages))
+        process.stdin.flush()
+        reader.join(timeout)
+    except OSError:
+        pass
+    finally:
+        process.kill()
+        process.wait()
+    message = result.get("message")
+    if message is None:
+        raise QuotaError("codex app-server から応答がありません")
+    response = message.get("result")
+    if not isinstance(response, dict):
+        raise QuotaError("codex app-server がエラーを返しました")
+    limits = response.get("rateLimits")
+    if not isinstance(limits, dict):
+        raise QuotaError("rateLimits が見つかりません")
+    now = time.time()
+    return {
+        "target": "codex",
+        "fetched_at": now,
+        "source_mtime": now,
+        "five": app_server_window(limits.get("primary")),
+        "seven": app_server_window(limits.get("secondary")),
+    }
+
+
 def fetch_codex() -> dict[str, Any]:
+    try:
+        return fetch_codex_app_server()
+    except QuotaError:
+        pass  # Fall back to the last snapshot recorded in local session logs.
     last_error: QuotaError | None = None
     for path in newest_rollouts():
         try:
