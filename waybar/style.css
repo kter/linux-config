@@ -47,7 +47,7 @@ window#waybar {
 }
 
 /* 右側モジュール共通 */
-#network,
+#custom-wifi,
 #custom-wwan,
 #backlight,
 #pulseaudio,
@@ -68,7 +68,7 @@ window#waybar {
 }
 
 /* 区切り線 */
-#network,
+#custom-wifi,
 #custom-wwan,
 #backlight,
 #pulseaudio,
@@ -162,7 +162,7 @@ window#waybar {
 }
 
 /* ネットワーク */
-#network.disconnected {
+#custom-wifi.disconnected {
     color: #f38ba8;
 }
 

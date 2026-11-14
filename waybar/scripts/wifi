@@ -1,0 +1,94 @@
+#!/usr/bin/env python3
+"""Emit the primary network link (Wi-Fi or wired) with a detailed tooltip.
+
+Waybar 組み込みの network モジュールは ping や累計転送量を出せないため、
+置き換えとしてこのスクリプトを使う。デフォルトルートのインターフェースを
+対象にし、無線なら SSID と電波強度、有線なら IP をバーに出す。
+"""
+
+import json
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+import netinfo
+
+ICON_WIFI = ""
+ICON_ETHERNET = ""
+ICON_WARN = ""
+
+
+def wifi_link(ifname: str) -> dict:
+    try:
+        out = subprocess.run(
+            ["iw", "dev", ifname, "link"], capture_output=True, text=True, timeout=3
+        ).stdout
+    except (OSError, subprocess.SubprocessError):
+        return {}
+    info = {}
+    if m := re.search(r"SSID: (.+)", out):
+        info["ssid"] = m.group(1).strip()
+    if m := re.search(r"signal: (-?\d+) dBm", out):
+        info["dbm"] = int(m.group(1))
+    if m := re.search(r"freq: ([\d.]+)", out):
+        info["freq"] = float(m.group(1))
+    if m := re.search(r"rx bitrate: ([\d.]+) MBit/s", out):
+        info["rx_bitrate"] = float(m.group(1))
+    if m := re.search(r"tx bitrate: ([\d.]+) MBit/s", out):
+        info["tx_bitrate"] = float(m.group(1))
+    return info
+
+
+def signal_percent(dbm: int) -> int:
+    # Waybar の network モジュールと同じ換算（-100 dBm=0%, -50 dBm=100%）。
+    return max(0, min(100, 2 * (dbm + 100)))
+
+
+def band(freq: float | None) -> str:
+    if freq is None:
+        return "--"
+    if freq >= 5925:
+        return "6 GHz"
+    if freq >= 4900:
+        return "5 GHz"
+    return "2.4 GHz"
+
+
+def build() -> dict:
+    ifname = netinfo.default_interface()
+    if not ifname:
+        return {"text": f"{ICON_WARN} 未接続", "tooltip": "未接続", "class": "disconnected"}
+
+    stats = netinfo.collect(ifname)
+    rows = netinfo.stat_rows(stats)
+
+    if (Path("/sys/class/net") / ifname / "wireless").exists():
+        link = wifi_link(ifname)
+        dbm = link.get("dbm")
+        pct = signal_percent(dbm) if dbm is not None else 0
+        bitrate = link.get("rx_bitrate")
+        rows.append((
+            "Signal", f"{dbm} dBm" if dbm is not None else "--",
+            "Band", band(link.get("freq")),
+        ))
+        rows.append((
+            "Link", f"{bitrate:.0f} Mb/s" if bitrate else "--",
+            "Interface", ifname,
+        ))
+        tooltip = netinfo.render(ICON_WIFI, link.get("ssid", ifname), netinfo.activity(stats), rows)
+        return {"text": f"{ICON_WIFI} {pct}%", "tooltip": tooltip, "class": "wifi", "percentage": pct}
+
+    rows.append(("Interface", ifname, "", ""))
+    tooltip = netinfo.render(ICON_ETHERNET, "Wired", netinfo.activity(stats), rows)
+    return {"text": f"{ICON_ETHERNET} {stats.ipv4 or ifname}", "tooltip": tooltip, "class": "ethernet"}
+
+
+def main() -> int:
+    json.dump(build(), sys.stdout, ensure_ascii=False)
+    sys.stdout.write("\n")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
