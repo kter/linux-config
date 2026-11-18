@@ -375,8 +375,15 @@ def forecast_lines(forecast: list[dict[str, Any]]) -> list[str]:
     return lines
 
 
+def fetched_text(stamp: Any) -> str:
+    moment = time.localtime(float(stamp or 0))
+    same_day = time.strftime("%Y%m%d", moment) == time.strftime("%Y%m%d")
+    return time.strftime("%H:%M" if same_day else "%m/%d %H:%M", moment)
+
+
 def render(
-    weather: dict[str, Any], stale: bool, nowcast: dict[str, Any] | None = None
+    weather: dict[str, Any], stale: bool, nowcast: dict[str, Any] | None = None,
+    nowcast_missing: bool = False,
 ) -> dict[str, str]:
     label, icon = describe(weather.get("code"), weather.get("is_day", 1))
     temperature = weather.get("temperature")
@@ -400,8 +407,12 @@ def render(
         tooltip.grid(rows),
         tooltip.rule(tooltip.grid_width(rows)),
     ]
+    updated = fetched_text(weather.get("fetched_at"))
     if nowcast:
         blocks += [*nowcast_lines(nowcast), ""]
+    elif nowcast_missing:
+        # 黙ってグラフを消さず、出せない理由を書く。
+        blocks += [tooltip.section("next hour"), tooltip.notes("降水ナウキャストを取得できないため非表示"), ""]
     # 古いキャッシュを出すときに過ぎた時間帯を「今後」と呼ばないよう、まだ終わっていない区間に絞る。
     now = time.time()
     upcoming = [
@@ -409,9 +420,16 @@ def render(
     ][:12]
     if upcoming:
         blocks += [*forecast_lines(upcoming), ""]
+    else:
+        blocks += [
+            tooltip.section("next 12h"),
+            tooltip.notes(f"予報を取得できず、{updated} 取得分の時間帯は過ぎたため非表示"),
+            "",
+        ]
 
-    updated = time.strftime("%H:%M", time.localtime(float(weather.get("fetched_at") or 0)))
-    blocks.append(tooltip.notes(("最終更新: " if stale else "更新: ") + updated))
+    blocks.append(tooltip.notes(
+        ("最終更新: " if stale else "更新: ") + updated + ("（取得に失敗、古い値を表示中）" if stale else "")
+    ))
 
     return {
         "text": f"{icon} {degrees}°C",
@@ -449,21 +467,23 @@ def main() -> int:
     cached = read_cache("weather.json")
     now = time.time()
     nowcast = load_nowcast(now)
+    # Client ID を設定していない場合は、もともとグラフを出さない設定なので理由も書かない。
+    nowcast_missing = nowcast is None and bool(yolp_appid())
     if cached and now - float(cached.get("fetched_at") or 0) < WEATHER_MAX_AGE - CACHE_MARGIN:
-        print(json.dumps(render(cached, stale=False, nowcast=nowcast), ensure_ascii=False))
+        print(json.dumps(render(cached, stale=False, nowcast=nowcast, nowcast_missing=nowcast_missing), ensure_ascii=False))
         return 0
 
     try:
         weather = fetch_weather(resolve_location())
     except WeatherError as error:
         if cached and now - float(cached.get("fetched_at") or 0) < STALE_GIVE_UP:
-            print(json.dumps(render(cached, stale=True, nowcast=nowcast), ensure_ascii=False))
+            print(json.dumps(render(cached, stale=True, nowcast=nowcast, nowcast_missing=nowcast_missing), ensure_ascii=False))
             return 0
         print(json.dumps(error_output(str(error)), ensure_ascii=False))
         return 0
 
     write_cache("weather.json", weather)
-    print(json.dumps(render(weather, stale=False, nowcast=nowcast), ensure_ascii=False))
+    print(json.dumps(render(weather, stale=False, nowcast=nowcast, nowcast_missing=nowcast_missing), ensure_ascii=False))
     return 0
 
 
