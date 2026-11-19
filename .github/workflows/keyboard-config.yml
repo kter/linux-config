@@ -1,0 +1,12 @@
+name: Keyboard config
+on: [push, pull_request]
+jobs:
+  keyboard-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python3 -B sway/scripts/keyboard-check.py
+      - run: python3 -B -m unittest discover -s sway/tests

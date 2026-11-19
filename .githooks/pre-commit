@@ -1,0 +1,5 @@
+#!/bin/sh
+set -eu
+cd "$(git rev-parse --show-toplevel)"
+python3 -B sway/scripts/keyboard-check.py
+python3 -B -m unittest discover -s sway/tests

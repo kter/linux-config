@@ -22,3 +22,8 @@
 !/claude/statusline.py
 !/NetworkManager/
 !/NetworkManager/**
+!/.githooks/
+!/.githooks/**
+!/.github/
+!/.github/**
+/sway/**/__pycache__/

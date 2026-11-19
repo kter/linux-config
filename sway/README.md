@@ -80,7 +80,7 @@ export GLFW_IM_MODULE=fcitx
 ```
 exec_always --no-startup-id systemctl --user import-environment XDG_SESSION_TYPE XDG_CURRENT_DESKTOP WAYLAND_DISPLAY SWAYSOCK
 exec_always --no-startup-id dbus-update-activation-environment --systemd XDG_SESSION_TYPE XDG_CURRENT_DESKTOP WAYLAND_DISPLAY SWAYSOCK
-exec_always --no-startup-id systemctl --user restart toshy-wlroots-dbus.service toshy-config.service
+exec_always --no-startup-id ~/.config/sway/scripts/toshy-restart.sh
 exec fcitx5 -d
 for_window [app_id="fcitx"] floating enable, border none
 ```
@@ -119,8 +119,10 @@ Wayland セッション変数を渡さないと起動に失敗することがあ
 ```conf
 exec_always --no-startup-id systemctl --user import-environment XDG_SESSION_TYPE XDG_CURRENT_DESKTOP WAYLAND_DISPLAY SWAYSOCK
 exec_always --no-startup-id dbus-update-activation-environment --systemd XDG_SESSION_TYPE XDG_CURRENT_DESKTOP WAYLAND_DISPLAY SWAYSOCK
-exec_always --no-startup-id systemctl --user restart toshy-wlroots-dbus.service toshy-config.service
+exec_always --no-startup-id ~/.config/sway/scripts/toshy-restart.sh
 ```
+
+4.1.1 節のラッパーは Toshy を再起動してキーの押下状態を解消し、`systemctl` で直接再起動する設定行はチェッカーが拒否する。
 
 この構成では `Mod4` は変えず、物理 `Win` キーをそのまま `sway` の modifier として維持する。
 GUI アプリでは `Toshy` 側で
@@ -149,6 +151,48 @@ RIGHT_META や LEFT_CTRL に置き換わる。True にすると右側の修飾�
 
 `Win+d` は `Toshy` の `Super-d -> Delete` と衝突するため、
 `wofi` ランチャーは `Win+/` に割り当てている。
+
+### 4.1.1 キーボード設定の回帰チェック
+
+`sway/scripts/keyboard-check.py` は、xkb の修飾キー設定を `caps:ctrl_modifier` と
+`ctrl:nocaps` に制限し、端末の起動時に指定するアプリ ID が Toshy の `term_regex` と
+`cursor_exclude_regex` の両方に一致するかを調べる。Toshy の直接起動・再起動も検出し、
+`sway/scripts/toshy-restart.sh` を経由する設定を必須にしている。
+ラッパーは Toshy の起動と仮想キーボードの出現を待ち、キーボード入力を無効化・再有効化して
+再起動時に残った押下状態を解消する。起動待ちがタイムアウトしても入力のリセットは試みる。
+
+静的チェックと `sway/tests` のユニットテストは pre-commit と GitHub Actions で実行する。
+ローカルの hook はリポジトリのルートで次のように有効にする。
+
+```sh
+git config core.hooksPath .githooks
+```
+
+```sh
+python3 sway/scripts/keyboard-check.py
+python3 -m unittest discover -s sway/tests
+```
+
+未追跡の設定 DB は CI と hook では読まない。手元の `multi_lang` が `'True'` かも調べるには、
+同じ場所で `--local` を付ける。
+
+```sh
+python3 sway/scripts/keyboard-check.py --local
+```
+
+実際のキー変換は、Sway と Toshy が動いているセッションで次を実行して確認する。
+Toshy の既存 venv にある `evdev` を使い、uinput からキーを注入して wev と
+`foot-floating` が受け取った結果を検査する。テストは約10〜20秒フォーカスを奪うので、
+3秒のカウントダウンが始まったら終了までキーボードに触れない。
+フォーカスがテスト窓から外れたら注入を中止し、終了時には元の窓へフォーカスを戻す。
+
+```sh
+~/.config/toshy/.venv/bin/python -I sway/scripts/keyboard-e2e-test.py
+```
+
+Chrome 自体で物理左 Alt+T が新しいタブを開くことと、物理右 Alt で karukan が
+ひらがな入力に戻ることは、引き続き手動で確認する。E2E テストで確認できるのは
+テスト窓に届くキーとバイト列までになる。
 
 ### 4.2 トラックパッド
 
