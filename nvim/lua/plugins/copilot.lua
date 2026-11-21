@@ -1,5 +1,7 @@
 return {
   "zbirenbaum/copilot.lua",
+  -- Monthly quota hit; switched to Ollama (minuet.lua). Flip back to true to restore.
+  enabled = false,
   cmd = "Copilot",
   event = "InsertEnter",
   opts = {
