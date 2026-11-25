@@ -1,36 +1,37 @@
 return {
   "nvim-treesitter/nvim-treesitter",
-  -- Neovim 0.11.x needs the pre-rewrite line. Pin the known-good commit.
-  commit = "cf12346a3414fa1b06af75c79faebe7f76df080a",
+  -- The `main` branch is the rewrite that supports Nvim 0.12. The old `master`
+  -- line's query directives assume one node per capture, so on 0.12 they crash
+  -- while parsing markdown injections and LSP hover (K) shows raw Markdown.
+  branch = "main",
   lazy = false,
   build = ":TSUpdate",
   config = function()
-    require("nvim-treesitter.configs").setup({
-      ensure_installed = {
-        "bash",
-        "json",
-        "lua",
-        "markdown",
-        "markdown_inline",
-        "python",
-        "query",
-        "rust",
-        "tsx",
-        "typescript",
-        "vim",
-        "vimdoc",
-        "yaml",
-      },
-      highlight = {
-        enable = true,
-      },
-      -- The pinned pre-rewrite indent module crashes on Nvim 0.12
-      -- (query_predicates.lua: "attempt to call method 'type'"), so indentexpr
-      -- silently returns 0 and `o` lands on column 1. Fall back to the
-      -- runtime indenters (e.g. GetTypescriptIndent) instead.
-      indent = {
-        enable = false,
-      },
+    require("nvim-treesitter").install({
+      "bash",
+      "json",
+      "lua",
+      "markdown",
+      "markdown_inline",
+      "python",
+      "query",
+      "rust",
+      "tsx",
+      "typescript",
+      "vim",
+      "vimdoc",
+      "yaml",
     })
+
+    -- `main` no longer enables highlighting itself. Start it for every buffer
+    -- whose filetype has an installed parser; pcall skips the rest.
+    vim.api.nvim_create_autocmd("FileType", {
+      group = vim.api.nvim_create_augroup("user-treesitter", { clear = true }),
+      callback = function(args)
+        pcall(vim.treesitter.start, args.buf)
+      end,
+    })
+    -- Indentation stays on the runtime indenters (e.g. GetTypescriptIndent).
+    -- nvim-treesitter's indentexpr is still experimental on `main`.
   end,
 }
