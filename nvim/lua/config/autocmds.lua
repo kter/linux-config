@@ -53,6 +53,18 @@ vim.api.nvim_create_autocmd("BufEnter", {
       return
     end
 
+    -- Respect a manual :cd: files under the global cwd follow it instead of
+    -- their nearest project root. $HOME and / are skipped, otherwise starting
+    -- nvim from ~ would disable the auto lcd entirely.
+    local global_cwd = vim.fn.getcwd(-1, -1)
+    if global_cwd ~= vim.fs.normalize("~") and global_cwd ~= "/"
+        and vim.fs.relpath(global_cwd, bufname) then
+      if vim.fn.haslocaldir() == 1 then
+        vim.cmd("lcd " .. vim.fn.fnameescape(global_cwd))
+      end
+      return
+    end
+
     -- Nested list = equal priority, so the nearest ancestor wins. A flat list
     -- is searched in priority order, which let ~/package.json beat a nearer go.mod.
     local root = vim.fs.root(bufname, { project_root_markers })
